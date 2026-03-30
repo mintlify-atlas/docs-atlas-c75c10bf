@@ -1,0 +1,270 @@
+---
+title: "Tables, Orders & Delivery"
+description: "Manage dining room tables, take customer orders, send kitchen tickets (comandas), and handle delivery orders."
+---
+
+These three features cover the operational flow from seating a customer to handing food to a delivery driver. Each has its own resource controller and role restriction.
+
+<CardGroup cols={2}>
+  <Card title="Mesas" icon="table" href="#tables-mesas">
+    Table management for the dining room. Available to admin and mesero.
+  </Card>
+  <Card title="Pedidos" icon="clipboard-list" href="#orders-pedidos">
+    Order taking linked to a table or walk-in customer. Available to admin and cajero.
+  </Card>
+  <Card title="Comandas" icon="chef-hat" href="#kitchen-tickets-comandas">
+    Per-item kitchen tickets tied to an order. Available to admin and cajero.
+  </Card>
+  <Card title="Delivery" icon="truck" href="#delivery-orders">
+    Delivery tracking with address, phone, and driver assignment. Available to admin and cajero.
+  </Card>
+</CardGroup>
+
+---
+
+## Tables (mesas)
+
+```php
+Route::resource('mesas', MesaController::class)->middleware('role:admin,mesero');
+```
+
+### Database schema
+
+Defined in `database/migrations/2026_03_21_004811_create_mesas_table.php`:
+
+```php
+Schema::create('mesas', function (Blueprint $table) {
+    $table->id();
+    $table->string('numero');
+    $table->integer('capacidad');
+    $table->enum('estado', ['disponible', 'ocupada', 'reservada'])->default('disponible');
+    $table->timestamps();
+});
+```
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `bigint` (PK) | Auto-increment |
+| `numero` | `varchar` | Table identifier (e.g., "Mesa 1", "Terraza 3") |
+| `capacidad` | `integer` | Maximum number of guests |
+| `estado` | `enum` | `disponible`, `ocupada`, or `reservada`; defaults to `disponible` |
+| `created_at` / `updated_at` | `timestamp` | Laravel timestamps |
+
+### Routes
+
+| Method | URI | Action |
+|--------|-----|--------|
+| `GET` | `/mesas` | `index` |
+| `GET` | `/mesas/create` | `create` |
+| `POST` | `/mesas` | `store` |
+| `GET` | `/mesas/{mesa}` | `show` |
+| `GET` | `/mesas/{mesa}/edit` | `edit` |
+| `PUT/PATCH` | `/mesas/{mesa}` | `update` |
+| `DELETE` | `/mesas/{mesa}` | `destroy` |
+
+### Table states
+
+| State | Meaning |
+|-------|---------|
+| `disponible` | Table is free and ready to seat guests |
+| `ocupada` | Table is currently in use and has an active order |
+| `reservada` | Table is reserved and should not be seated walk-ins |
+
+---
+
+## Orders (pedidos)
+
+```php
+Route::resource('pedidos', PedidoController::class)->middleware('role:admin,cajero');
+```
+
+### Database schema
+
+Defined in `database/migrations/2026_03_21_012542_create_pedidos_table.php`:
+
+```php
+Schema::create('pedidos', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('mesa_id')->nullable()->constrained()->onDelete('set null');
+    $table->string('cliente')->nullable();
+    $table->decimal('total', 10, 2)->default(0);
+    $table->enum('estado', ['pendiente', 'preparando', 'listo', 'entregado', 'cancelado'])->default('pendiente');
+    $table->timestamp('fecha')->useCurrent();
+    $table->timestamps();
+});
+```
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `bigint` (PK) | Auto-increment |
+| `mesa_id` | `bigint` (FK, nullable) | References `mesas.id`; `SET NULL` on mesa deletion |
+| `cliente` | `varchar` (nullable) | Customer name for walk-in or delivery orders |
+| `total` | `decimal(10,2)` | Running order total; defaults to `0` |
+| `estado` | `enum` | Order status (see below); defaults to `pendiente` |
+| `fecha` | `timestamp` | Order creation time; defaults to `CURRENT_TIMESTAMP` |
+| `created_at` / `updated_at` | `timestamp` | Laravel timestamps |
+
+### Order statuses
+
+| Status | Description |
+|--------|-------------|
+| `pendiente` | Order has been placed, not yet sent to the kitchen |
+| `preparando` | Kitchen has started preparing the order |
+| `listo` | All items are ready for service or pickup |
+| `entregado` | Order has been delivered to the customer |
+| `cancelado` | Order was cancelled before completion |
+
+### Routes
+
+| Method | URI | Action |
+|--------|-----|--------|
+| `GET` | `/pedidos` | `index` |
+| `GET` | `/pedidos/create` | `create` |
+| `POST` | `/pedidos` | `store` |
+| `GET` | `/pedidos/{pedido}` | `show` |
+| `GET` | `/pedidos/{pedido}/edit` | `edit` |
+| `PUT/PATCH` | `/pedidos/{pedido}` | `update` |
+| `DELETE` | `/pedidos/{pedido}` | `destroy` |
+
+---
+
+## Kitchen tickets (comandas)
+
+Comandas are the per-item kitchen instructions attached to an order. Each `comanda` record links one product to one order with a quantity and its own preparation state.
+
+```php
+Route::resource('comandas', ComandaController::class)->middleware('role:admin,cajero');
+```
+
+### Database schema
+
+Defined in `database/migrations/2026_03_21_012543_create_comandas_table.php`:
+
+```php
+Schema::create('comandas', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('pedido_id')->constrained()->onDelete('cascade');
+    $table->foreignId('producto_id')->constrained()->onDelete('cascade');
+    $table->integer('cantidad');
+    $table->enum('estado', ['pendiente', 'preparando', 'listo'])->default('pendiente');
+    $table->timestamps();
+});
+```
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `bigint` (PK) | Auto-increment |
+| `pedido_id` | `bigint` (FK) | References `pedidos.id`; cascades on delete |
+| `producto_id` | `bigint` (FK) | References `productos.id`; cascades on delete |
+| `cantidad` | `integer` | Number of units to prepare |
+| `estado` | `enum` | Ticket status; defaults to `pendiente` |
+| `created_at` / `updated_at` | `timestamp` | Laravel timestamps |
+
+### Comanda statuses
+
+| Status | Description |
+|--------|-------------|
+| `pendiente` | Ticket received, not yet started |
+| `preparando` | Cook is actively preparing this item |
+| `listo` | Item is plated and ready for service |
+
+<Note>
+  Deleting a `pedido` cascades to all its `comandas`. Deleting a `producto` also cascades to any outstanding comandas referencing it.
+</Note>
+
+### Routes
+
+| Method | URI | Action |
+|--------|-----|--------|
+| `GET` | `/comandas` | `index` |
+| `GET` | `/comandas/create` | `create` |
+| `POST` | `/comandas` | `store` |
+| `GET` | `/comandas/{comanda}` | `show` |
+| `GET` | `/comandas/{comanda}/edit` | `edit` |
+| `PUT/PATCH` | `/comandas/{comanda}` | `update` |
+| `DELETE` | `/comandas/{comanda}` | `destroy` |
+
+---
+
+## Delivery orders
+
+Delivery records extend an existing `pedido` with the logistics details needed for off-premise delivery.
+
+```php
+Route::resource('delivery', DeliveryController::class)->middleware('role:admin,cajero');
+```
+
+### Database schema
+
+Defined in `database/migrations/2026_03_21_012544_create_deliveries_table.php`:
+
+```php
+Schema::create('deliveries', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('pedido_id')->constrained()->onDelete('cascade');
+    $table->string('direccion');
+    $table->string('telefono');
+    $table->string('repartidor')->nullable();
+    $table->enum('estado', ['pendiente', 'en_camino', 'entregado'])->default('pendiente');
+    $table->timestamps();
+});
+```
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `bigint` (PK) | Auto-increment |
+| `pedido_id` | `bigint` (FK) | References `pedidos.id`; cascades on delete |
+| `direccion` | `varchar` | Delivery address |
+| `telefono` | `varchar` | Customer phone number |
+| `repartidor` | `varchar` (nullable) | Driver name; can be assigned after creation |
+| `estado` | `enum` | Delivery status; defaults to `pendiente` |
+| `created_at` / `updated_at` | `timestamp` | Laravel timestamps |
+
+### Delivery statuses
+
+| Status | Description |
+|--------|-------------|
+| `pendiente` | Order placed, not yet dispatched |
+| `en_camino` | Driver has picked up the order and is en route |
+| `entregado` | Order successfully delivered to the customer |
+
+### Routes
+
+| Method | URI | Action |
+|--------|-----|--------|
+| `GET` | `/delivery` | `index` |
+| `GET` | `/delivery/create` | `create` |
+| `POST` | `/delivery` | `store` |
+| `GET` | `/delivery/{delivery}` | `show` |
+| `GET` | `/delivery/{delivery}/edit` | `edit` |
+| `PUT/PATCH` | `/delivery/{delivery}` | `update` |
+| `DELETE` | `/delivery/{delivery}` | `destroy` |
+
+---
+
+## Full order workflow
+
+<Steps>
+  <Step title="Seat the customer (mesero)">
+    Update the mesa `estado` to `ocupada` at `/mesas/{mesa}/edit`.
+  </Step>
+  <Step title="Create the order (cajero)">
+    Open `/pedidos/create`. Select the mesa and optionally enter the customer name. Submit to create the `pedido` with `estado = pendiente`.
+  </Step>
+  <Step title="Add kitchen tickets (cajero)">
+    For each item, create a `comanda` at `/comandas/create` linking `pedido_id` and `producto_id` with the desired `cantidad`.
+  </Step>
+  <Step title="Kitchen prepares items (cocinero)">
+    The cook updates each comanda from `pendiente` → `preparando` → `listo` as items are prepared.
+  </Step>
+  <Step title="Mark order delivered">
+    Once all comandas are `listo`, the cajero updates the pedido `estado` to `entregado`.
+  </Step>
+  <Step title="Free the table">
+    Update the mesa `estado` back to `disponible` so the next party can be seated.
+  </Step>
+</Steps>
+
+<Tip>
+  For delivery orders, create the `pedido` without a `mesa_id`, then immediately create a `delivery` record with the customer's address and phone number.
+</Tip>

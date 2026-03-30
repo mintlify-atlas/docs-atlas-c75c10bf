@@ -1,0 +1,80 @@
+---
+title: 'Cook dashboard'
+description: 'Role-scoped dashboard for cocinero users showing kitchen metrics and quick access to product and inventory management.'
+keywords: ['dashboard', 'cocinero', 'cook', 'kitchen', 'inventario', 'productos']
+---
+
+The cook dashboard gives `cocinero` users a view centered on kitchen operations. It surfaces the shared business metrics and limits sidebar navigation to the catalog and inventory sections — the areas a cook needs to manage day to day.
+
+**Route:** `GET /dashboard/cocinero`  
+**Controller:** `DashboardController@cocinero`  
+**Named route:** `dashboard.cocinero`
+
+<Note>
+Access requires the authenticated user's `role` to be `cocinero` or `admin`. Any other role receives a `403 Forbidden` response.
+</Note>
+
+## Metrics overview
+
+The dashboard displays four summary cards at the top of the page:
+
+| Card | Description |
+|------|-------------|
+| **Ventas Totales** | Cumulative sales revenue for the current period |
+| **Pedidos Hoy** | Total number of orders placed today |
+| **Clientes Atendidos** | Number of customers served |
+| **Productos Agotados** | Count of menu items currently out of stock |
+
+Below the cards, two panels provide additional context:
+
+- **Ventas Recientes** — a list of the most recent sales transactions
+- **Productos Más Vendidos** — a ranked list of the best-selling products
+
+## Sidebar navigation
+
+The cocinero role sees a sidebar focused on catalog and inventory.
+
+### Inteligencia de Negocios
+
+| Link | Route |
+|------|-------|
+| Dashboard Cocinero | `dashboard.cocinero` |
+
+### Catálogo y Menú
+
+| Link | Route | Middleware |
+|------|-------|-----------|
+| Productos | `productos.index` | `role:admin,cocinero` |
+| Inventario | `inventario.index` | `role:admin,cocinero` |
+
+<Tip>
+The **Inventario** link shows a red pulsing badge with a count when one or more ingredients have a quantity at or below their `stock_minimo` value. This is calculated with `Inventario::whereRaw('cantidad <= stock_minimo')->count()`. Watch this indicator to restock before items run out during service.
+</Tip>
+
+## Typical workflow
+
+<Steps>
+  <Step title="Log in and check the dashboard">
+    Navigate to `/dashboard/cocinero` after authentication. The **Productos Agotados** card immediately flags any items that can no longer be prepared.
+  </Step>
+  <Step title="Check the inventory badge">
+    If the **Inventario** sidebar link shows a badge, open the inventory view to see which ingredients are running low and need replenishment.
+  </Step>
+  <Step title="Update product availability">
+    In the **Productos** view, mark items as unavailable if their ingredients are depleted. This prevents orders from being taken for dishes that cannot be prepared.
+  </Step>
+  <Step title="Monitor incoming orders">
+    Review the **Ventas Recientes** panel on the dashboard to stay aware of order volume and anticipate kitchen demand.
+  </Step>
+</Steps>
+
+## Quick actions
+
+<CardGroup cols={2}>
+  <Card title="Gestión de Productos" icon="hamburger" href="/features/products-inventory">
+    Add, edit, or disable menu items based on what is available in the kitchen.
+  </Card>
+  <Card title="Control de Inventario" icon="boxes-stacked" href="/features/products-inventory">
+    Track ingredient quantities and receive low-stock alerts.
+  </Card>
+</CardGroup>

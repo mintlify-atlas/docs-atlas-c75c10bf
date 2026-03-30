@@ -1,0 +1,176 @@
+---
+title: "Installation"
+description: "Get SaborGestion running on your local machine using Composer, Node.js, and a MySQL database."
+keywords: ["installation", "setup", "laravel", "composer", "mysql", "saborGestion"]
+---
+
+## Prerequisites
+
+Make sure the following are installed before you begin:
+
+- **PHP 8.2+** — required by `composer.json` (`"php": "^8.2"`)
+- **Composer** — PHP dependency manager
+- **Node.js** — for building frontend assets with Vite
+- **MySQL** — with a database named `saborGestion` created
+
+## Install
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/Henry4ndrew/saborGestion.git
+    cd saborGestion
+    ```
+  </Step>
+
+  <Step title="Install PHP dependencies">
+    ```bash
+    composer install
+    ```
+  </Step>
+
+  <Step title="Configure your environment">
+    Copy the example environment file and open it for editing:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Update the database section to point at your MySQL instance:
+
+    ```ini
+    DB_CONNECTION=mysql
+    DB_HOST=127.0.0.1
+    DB_PORT=3306
+    DB_DATABASE=saborGestion
+    DB_USERNAME=root
+    DB_PASSWORD=
+    ```
+
+    <Note>
+      The `.env.example` defaults to SQLite. Switch `DB_CONNECTION` to `mysql` and uncomment the `DB_*` lines when using MySQL.
+    </Note>
+  </Step>
+
+  <Step title="Generate the application key">
+    ```bash
+    php artisan key:generate
+    ```
+
+    This writes a unique `APP_KEY` value to your `.env` file, which Laravel uses to encrypt sessions and cookies.
+  </Step>
+
+  <Step title="Run database migrations">
+    ```bash
+    php artisan migrate
+    ```
+
+    This creates all tables — `users`, `productos`, `inventarios`, `mesas`, `pedidos`, `comandas`, `deliveries`, `facturas`, `pagos`, and `cierre_cajas`.
+  </Step>
+
+  <Step title="Install and build frontend assets">
+    ```bash
+    npm install && npm run build
+    ```
+  </Step>
+
+  <Step title="Start the development server">
+    ```bash
+    php artisan serve
+    ```
+
+    The application will be available at [http://localhost:8000](http://localhost:8000).
+  </Step>
+</Steps>
+
+## One-command setup
+
+The `composer.json` includes a `setup` script that runs steps 2–6 in sequence:
+
+```bash
+composer run setup
+```
+
+This executes:
+
+```json
+"setup": [
+    "composer install",
+    "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+    "@php artisan key:generate",
+    "@php artisan migrate --force",
+    "npm install",
+    "npm run build"
+]
+```
+
+<Note>
+  `composer run setup` copies `.env.example` to `.env` automatically if `.env` doesn't exist yet, but you still need to edit the database credentials before running migrations.
+</Note>
+
+## Seed development users
+
+SaborGestion has no database seeder file. Use Laravel Tinker to create the four role accounts manually:
+
+```bash
+php artisan tinker
+```
+
+Then paste the following into the Tinker prompt:
+
+```php
+use App\Models\User;
+
+// Admin
+User::create([
+    'name' => 'Administrador',
+    'email' => 'admin@saborgestion.com',
+    'password' => '12345678',
+    'role' => 'admin'
+]);
+
+// Mesero
+User::create([
+    'name' => 'Mesero',
+    'email' => 'mesero@saborgestion.com',
+    'password' => '12345678',
+    'role' => 'mesero'
+]);
+
+// Cocinero
+User::create([
+    'name' => 'Cocinero',
+    'email' => 'cocinero@saborgestion.com',
+    'password' => '12345678',
+    'role' => 'cocinero'
+]);
+
+// Cajero
+User::create([
+    'name' => 'Cajero',
+    'email' => 'cajero@saborgestion.com',
+    'password' => '12345678',
+    'role' => 'cajero'
+]);
+```
+
+<Note>
+  The `User` model declares `'password' => 'hashed'` in its `casts` array, so Laravel automatically bcrypt-hashes the password value when you use `User::create()`. You do not need to call `Hash::make()` manually in Tinker.
+</Note>
+
+<Warning>
+  Change all default passwords before deploying to a production environment. The password `12345678` is intentionally weak and must not be used outside local development.
+</Warning>
+
+## Access the application
+
+Navigate to [http://localhost:8000](http://localhost:8000). You'll see the home page with an **Iniciar Sesión** button. Click it to go to the login screen at `/login`, then sign in with any of the seeded credentials.
+
+After login, Laravel redirects you to the dashboard for your role:
+
+| Role | Dashboard route |
+|---|---|
+| `admin` | `/dashboard/administrador` |
+| `mesero` | `/dashboard/mesero` |
+| `cocinero` | `/dashboard/cocinero` |
+| `cajero` | `/dashboard/cajero` |

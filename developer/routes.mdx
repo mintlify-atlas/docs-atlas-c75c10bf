@@ -1,0 +1,237 @@
+---
+title: 'Routes reference'
+description: 'Complete reference for all HTTP routes registered in SaborGestion, including public routes, authentication routes, and role-protected resource routes.'
+---
+
+SaborGestion defines its routes in `routes/web.php`. All protected routes require an authenticated session via the `auth` middleware. Resource routes that modify data additionally require one or more roles enforced by the `role` middleware.
+
+## Public routes
+
+These routes are accessible without authentication.
+
+| Method | URI | Name | View |
+|--------|-----|------|------|
+| GET | `/` | `home` | `home` |
+| GET | `/inicio` | `inicio` | `home` |
+
+## Authentication routes
+
+Laravel Breeze registers the following standard auth routes via `require __DIR__.'/auth.php'`.
+
+| Method | URI | Description |
+|--------|-----|-------------|
+| GET | `/login` | Show login form |
+| POST | `/login` | Process login credentials |
+| POST | `/logout` | Invalidate session and redirect |
+| GET | `/register` | Show registration form |
+| POST | `/register` | Create a new user account |
+| GET | `/forgot-password` | Show password reset request form |
+| POST | `/forgot-password` | Send password reset link |
+| GET | `/reset-password/{token}` | Show password reset form |
+| POST | `/reset-password` | Process password reset |
+
+## Dashboard routes
+
+All dashboard routes require the `auth` middleware. Each route is scoped to a role-specific view rendered by `DashboardController`.
+
+| Method | URI | Name | Controller method |
+|--------|-----|------|-------------------|
+| GET | `/dashboard/administrador` | `dashboard.administrador` | `DashboardController@administrador` |
+| GET | `/dashboard/mesero` | `dashboard.mesero` | `DashboardController@mesero` |
+| GET | `/dashboard/cocinero` | `dashboard.cocinero` | `DashboardController@cocinero` |
+| GET | `/dashboard/cajero` | `dashboard.cajero` | `DashboardController@cajero` |
+
+## Resource routes
+
+Each resource route group is registered with `Route::resource()` and expands to seven standard RESTful actions. All resource routes require the `auth` middleware plus the role(s) listed in the **Roles** column.
+
+### Productos
+
+`Route::resource('productos', ProductoController::class)->middleware('role:admin,cocinero')`
+
+| Method | URI | Action | Roles |
+|--------|-----|--------|-------|
+| GET | `/productos` | `index` | admin, cocinero |
+| GET | `/productos/create` | `create` | admin, cocinero |
+| POST | `/productos` | `store` | admin, cocinero |
+| GET | `/productos/{producto}` | `show` | admin, cocinero |
+| GET | `/productos/{producto}/edit` | `edit` | admin, cocinero |
+| PUT / PATCH | `/productos/{producto}` | `update` | admin, cocinero |
+| DELETE | `/productos/{producto}` | `destroy` | admin, cocinero |
+
+### Inventario
+
+`Route::resource('inventario', InventarioController::class)->middleware('role:admin,cocinero')`
+
+| Method | URI | Action | Roles |
+|--------|-----|--------|-------|
+| GET | `/inventario` | `index` | admin, cocinero |
+| GET | `/inventario/create` | `create` | admin, cocinero |
+| POST | `/inventario` | `store` | admin, cocinero |
+| GET | `/inventario/{inventario}` | `show` | admin, cocinero |
+| GET | `/inventario/{inventario}/edit` | `edit` | admin, cocinero |
+| PUT / PATCH | `/inventario/{inventario}` | `update` | admin, cocinero |
+| DELETE | `/inventario/{inventario}` | `destroy` | admin, cocinero |
+
+### Mesas
+
+`Route::resource('mesas', MesaController::class)->middleware('role:admin,mesero')`
+
+| Method | URI | Action | Roles |
+|--------|-----|--------|-------|
+| GET | `/mesas` | `index` | admin, mesero |
+| GET | `/mesas/create` | `create` | admin, mesero |
+| POST | `/mesas` | `store` | admin, mesero |
+| GET | `/mesas/{mesa}` | `show` | admin, mesero |
+| GET | `/mesas/{mesa}/edit` | `edit` | admin, mesero |
+| PUT / PATCH | `/mesas/{mesa}` | `update` | admin, mesero |
+| DELETE | `/mesas/{mesa}` | `destroy` | admin, mesero |
+
+### Pedidos
+
+`Route::resource('pedidos', PedidoController::class)->middleware('role:admin,cajero')`
+
+| Method | URI | Action | Roles |
+|--------|-----|--------|-------|
+| GET | `/pedidos` | `index` | admin, cajero |
+| GET | `/pedidos/create` | `create` | admin, cajero |
+| POST | `/pedidos` | `store` | admin, cajero |
+| GET | `/pedidos/{pedido}` | `show` | admin, cajero |
+| GET | `/pedidos/{pedido}/edit` | `edit` | admin, cajero |
+| PUT / PATCH | `/pedidos/{pedido}` | `update` | admin, cajero |
+| DELETE | `/pedidos/{pedido}` | `destroy` | admin, cajero |
+
+### Comandas
+
+`Route::resource('comandas', ComandaController::class)->middleware('role:admin,cajero')`
+
+| Method | URI | Action | Roles |
+|--------|-----|--------|-------|
+| GET | `/comandas` | `index` | admin, cajero |
+| GET | `/comandas/create` | `create` | admin, cajero |
+| POST | `/comandas` | `store` | admin, cajero |
+| GET | `/comandas/{comanda}` | `show` | admin, cajero |
+| GET | `/comandas/{comanda}/edit` | `edit` | admin, cajero |
+| PUT / PATCH | `/comandas/{comanda}` | `update` | admin, cajero |
+| DELETE | `/comandas/{comanda}` | `destroy` | admin, cajero |
+
+### Delivery
+
+`Route::resource('delivery', DeliveryController::class)->middleware('role:admin,cajero')`
+
+| Method | URI | Action | Roles |
+|--------|-----|--------|-------|
+| GET | `/delivery` | `index` | admin, cajero |
+| GET | `/delivery/create` | `create` | admin, cajero |
+| POST | `/delivery` | `store` | admin, cajero |
+| GET | `/delivery/{delivery}` | `show` | admin, cajero |
+| GET | `/delivery/{delivery}/edit` | `edit` | admin, cajero |
+| PUT / PATCH | `/delivery/{delivery}` | `update` | admin, cajero |
+| DELETE | `/delivery/{delivery}` | `destroy` | admin, cajero |
+
+### Facturas
+
+`Route::resource('facturas', FacturaController::class)->middleware('role:admin,cajero')`
+
+| Method | URI | Action | Roles |
+|--------|-----|--------|-------|
+| GET | `/facturas` | `index` | admin, cajero |
+| GET | `/facturas/create` | `create` | admin, cajero |
+| POST | `/facturas` | `store` | admin, cajero |
+| GET | `/facturas/{factura}` | `show` | admin, cajero |
+| GET | `/facturas/{factura}/edit` | `edit` | admin, cajero |
+| PUT / PATCH | `/facturas/{factura}` | `update` | admin, cajero |
+| DELETE | `/facturas/{factura}` | `destroy` | admin, cajero |
+
+### Pagos
+
+`Route::resource('pagos', PagoController::class)->middleware('role:admin,cajero')`
+
+| Method | URI | Action | Roles |
+|--------|-----|--------|-------|
+| GET | `/pagos` | `index` | admin, cajero |
+| GET | `/pagos/create` | `create` | admin, cajero |
+| POST | `/pagos` | `store` | admin, cajero |
+| GET | `/pagos/{pago}` | `show` | admin, cajero |
+| GET | `/pagos/{pago}/edit` | `edit` | admin, cajero |
+| PUT / PATCH | `/pagos/{pago}` | `update` | admin, cajero |
+| DELETE | `/pagos/{pago}` | `destroy` | admin, cajero |
+
+### Cierres de caja
+
+`Route::resource('cierres', CierreCajaController::class)->middleware('role:admin,cajero')`
+
+| Method | URI | Action | Roles |
+|--------|-----|--------|-------|
+| GET | `/cierres` | `index` | admin, cajero |
+| GET | `/cierres/create` | `create` | admin, cajero |
+| POST | `/cierres` | `store` | admin, cajero |
+| GET | `/cierres/{cierre}` | `show` | admin, cajero |
+| GET | `/cierres/{cierre}/edit` | `edit` | admin, cajero |
+| PUT / PATCH | `/cierres/{cierre}` | `update` | admin, cajero |
+| DELETE | `/cierres/{cierre}` | `destroy` | admin, cajero |
+
+### Usuarios
+
+`Route::resource('usuarios', UsuarioController::class)->middleware('role:admin')`
+
+| Method | URI | Action | Roles |
+|--------|-----|--------|-------|
+| GET | `/usuarios` | `index` | admin |
+| GET | `/usuarios/create` | `create` | admin |
+| POST | `/usuarios` | `store` | admin |
+| GET | `/usuarios/{usuario}` | `show` | admin |
+| GET | `/usuarios/{usuario}/edit` | `edit` | admin |
+| PUT / PATCH | `/usuarios/{usuario}` | `update` | admin |
+| DELETE | `/usuarios/{usuario}` | `destroy` | admin |
+
+<Note>
+  The `role` middleware checks the `role` column on the `users` table. A request that fails the role check will be rejected before reaching the controller. See [Middleware](/developer/middleware) for the implementation details.
+</Note>
+
+## Source file
+
+```php routes/web.php
+<?php
+
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ProductoController;
+use App\Http\Controllers\InventarioController;
+use App\Http\Controllers\MesaController;
+use App\Http\Controllers\PedidoController;
+use App\Http\Controllers\ComandaController;
+use App\Http\Controllers\DeliveryController;
+use App\Http\Controllers\FacturaController;
+use App\Http\Controllers\PagoController;
+use App\Http\Controllers\CierreCajaController;
+use App\Http\Controllers\UsuarioController;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', function () {
+    return view('home');
+})->name('home');
+
+Route::get('/inicio', function () {
+    return view('home');
+})->name('inicio');
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/dashboard/administrador', [DashboardController::class, 'administrador'])->name('dashboard.administrador');
+    Route::get('/dashboard/mesero',        [DashboardController::class, 'mesero'])->name('dashboard.mesero');
+    Route::get('/dashboard/cocinero',      [DashboardController::class, 'cocinero'])->name('dashboard.cocinero');
+    Route::get('/dashboard/cajero',        [DashboardController::class, 'cajero'])->name('dashboard.cajero');
+
+    Route::resource('productos',  ProductoController::class)->middleware('role:admin,cocinero');
+    Route::resource('inventario', InventarioController::class)->middleware('role:admin,cocinero');
+    Route::resource('mesas',      MesaController::class)->middleware('role:admin,mesero');
+    Route::resource('pedidos',    PedidoController::class)->middleware('role:admin,cajero');
+    Route::resource('comandas',   ComandaController::class)->middleware('role:admin,cajero');
+    Route::resource('delivery',   DeliveryController::class)->middleware('role:admin,cajero');
+    Route::resource('facturas',   FacturaController::class)->middleware('role:admin,cajero');
+    Route::resource('pagos',      PagoController::class)->middleware('role:admin,cajero');
+    Route::resource('cierres',    CierreCajaController::class)->middleware('role:admin,cajero');
+    Route::resource('usuarios',   UsuarioController::class)->middleware('role:admin');
+});
+
+require __DIR__.'/auth.php';
+```

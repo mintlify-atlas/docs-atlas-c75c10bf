@@ -1,0 +1,94 @@
+---
+title: 'Cashier dashboard'
+description: 'Role-scoped dashboard for cajero users covering the full order-to-payment workflow including orders, kitchen tickets, delivery, pre-invoicing, payments, and end-of-day cash register closing.'
+keywords: ['dashboard', 'cajero', 'cashier', 'pedidos', 'pagos', 'cierre de caja', 'factura', 'delivery']
+---
+
+The cashier dashboard is the operational hub for `cajero` users. It covers the full customer transaction lifecycle — from taking an order through to collecting payment and closing the register at the end of the day.
+
+**Route:** `GET /dashboard/cajero`  
+**Controller:** `DashboardController@cajero`  
+**Named route:** `dashboard.cajero`
+
+<Note>
+Access requires the authenticated user's `role` to be `cajero` or `admin`. Any other role receives a `403 Forbidden` response.
+</Note>
+
+## Metrics overview
+
+The dashboard displays four summary cards at the top of the page:
+
+| Card | Description |
+|------|-------------|
+| **Ventas Totales** | Cumulative sales revenue for the current period |
+| **Pedidos Hoy** | Total number of orders placed today |
+| **Clientes Atendidos** | Number of customers served |
+| **Productos Agotados** | Count of menu items currently out of stock |
+
+Below the cards, two panels provide additional context:
+
+- **Ventas Recientes** — a list of the most recent sales transactions
+- **Productos Más Vendidos** — a ranked list of the best-selling products
+
+## Sidebar navigation
+
+The cajero role has the broadest operational scope outside of `admin`. The entire **Operaciones** section of the sidebar is available:
+
+### Inteligencia de Negocios
+
+| Link | Route |
+|------|-------|
+| Dashboard Cajero | `dashboard.cajero` |
+
+### Operaciones
+
+All order management, billing, and end-of-day operations are grouped under this section:
+
+| Link | Route | Description |
+|------|-------|-------------|
+| Pedidos | `pedidos.index` | Create and manage customer orders |
+| Comandas | `comandas.index` | View and process kitchen tickets |
+| Delivery | `delivery.index` | Manage delivery orders |
+| Pre-factura | `facturas.index` | Generate pre-invoices for tables |
+| Pagos | `pagos.index` | Record and manage payments |
+| Cierre de Caja | `cierres.index` | Run the end-of-day cash register closing |
+
+## End-of-day closing workflow
+
+The cashier is responsible for the daily register closing. The steps below describe the standard sequence:
+
+<Steps>
+  <Step title="Verify all orders are closed">
+    In **Pedidos**, confirm that all active orders for the day have been completed or cancelled. Open orders will affect totals in the closing report.
+  </Step>
+  <Step title="Generate pre-invoices">
+    Use **Pre-factura** to issue invoices for any tables or orders that have not yet been billed. Every served order must have a corresponding invoice before closing.
+  </Step>
+  <Step title="Record outstanding payments">
+    In **Pagos**, verify that all invoices have a matching payment record. Register any cash, card, or other payment methods used.
+  </Step>
+  <Step title="Run the Cierre de Caja">
+    Navigate to **Cierre de Caja** and create a new closing entry. The system will consolidate all payments recorded during the day into the closing report.
+  </Step>
+</Steps>
+
+## Quick actions
+
+<CardGroup cols={2}>
+  <Card title="Toma de pedidos" icon="clipboard-list" href="/features/tables-orders">
+    Open the orders module to take new orders or view existing ones.
+  </Card>
+  <Card title="Gestión de comanda" icon="receipt" href="/features/tables-orders">
+    Monitor kitchen tickets and confirm that dishes are dispatched correctly.
+  </Card>
+  <Card title="Registro de pagos" icon="credit-card" href="/features/billing-payments">
+    Log customer payments against open invoices.
+  </Card>
+  <Card title="Cierre de Caja" icon="cash-register" href="/features/billing-payments">
+    Close the daily register and generate the end-of-day summary.
+  </Card>
+</CardGroup>
+
+<Warning>
+Always complete the **Cierre de Caja** before logging out at the end of a shift. A missing daily closing will cause discrepancies in sales reports and reconciliation.
+</Warning>

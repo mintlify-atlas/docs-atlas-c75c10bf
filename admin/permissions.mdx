@@ -1,0 +1,173 @@
+---
+title: "Roles & permissions"
+description: "How SaborGestion's four roles map to routes, and how RoleMiddleware enforces access on every request."
+---
+
+SaborGestion uses a single `role` column on the `users` table to control which parts of the application each person can reach. There are four roles. Every route group in `web.php` declares which roles are allowed via the `role` middleware alias.
+
+## The four roles
+
+| Role | Description |
+|---|---|
+| `admin` | Full access to every section of the application, including user management |
+| `mesero` | Access to table management (`mesas`) and the mesero dashboard |
+| `cocinero` | Access to product catalog (`productos`), ingredient inventory (`inventario`), and the cocinero dashboard |
+| `cajero` | Access to orders, comandas, delivery, invoices, payments, and cash-register closing |
+
+The `role` column is an `ENUM` with a default value of `mesero`:
+
+```php
+$table->enum('role', ['admin', 'mesero', 'cocinero', 'cajero'])->default('mesero');
+```
+
+## How RoleMiddleware works
+
+`App\Http\Middleware\RoleMiddleware` is the single piece of code that enforces role-based access. It runs on every request where the `role:…` middleware alias appears on a route.
+
+```php
+public function handle(Request $request, Closure $next, ...$roles)
+{
+    if (!Auth::check()) {
+        return redirect('login');
+    }
+
+    $userRole = Auth::user()->role;
+
+    if (in_array($userRole, $roles)) {
+        return $next($request);
+    }
+
+    abort(403, 'No tienes permiso para acceder a esta página.');
+}
+```
+
+The middleware receives the allowed roles as variadic arguments (e.g., `role:admin,cocinero` becomes `$roles = ['admin', 'cocinero']`). It:
+
+1. Redirects to `/login` if no authenticated session exists.
+2. Reads `Auth::user()->role` from the database.
+3. Calls `in_array` to check whether the user's role is in the allowed list.
+4. Passes the request through if matched, or aborts with **HTTP 403** if not.
+
+<Note>
+  The allowed roles list is declared **explicitly** on each route. The middleware itself does not contain any hardcoded bypass logic — it simply checks whether the user's role appears in whatever list the route provides.
+</Note>
+
+## Admin bypass in DashboardController
+
+The `DashboardController` uses a private helper `authorizeRole` that adds an `admin` bypass on top of the middleware check. This lets administrators view any role-specific dashboard without being enrolled in that role:
+
+```php
+private function authorizeRole($role)
+{
+    if (Auth::user()->role !== $role && Auth::user()->role !== 'admin') {
+        abort(403, 'No tienes permiso para acceder a esta página.');
+    }
+}
+```
+
+For example, calling `$this->authorizeRole('mesero')` allows both users whose role is `mesero` **and** users whose role is `admin` to reach that dashboard. The four role-specific dashboard methods each call this helper with their own role string.
+
+## Route permission map
+
+Every resource route group in `web.php` declares its allowed roles inline. The table below lists all protected route groups and the roles that can access them.
+
+| Route resource | Middleware | Allowed roles |
+|---|---|---|
+| `productos` | `role:admin,cocinero` | admin, cocinero |
+| `inventario` | `role:admin,cocinero` | admin, cocinero |
+| `mesas` | `role:admin,mesero` | admin, mesero |
+| `pedidos` | `role:admin,cajero` | admin, cajero |
+| `comandas` | `role:admin,cajero` | admin, cajero |
+| `delivery` | `role:admin,cajero` | admin, cajero |
+| `facturas` | `role:admin,cajero` | admin, cajero |
+| `pagos` | `role:admin,cajero` | admin, cajero |
+| `cierres` | `role:admin,cajero` | admin, cajero |
+| `usuarios` | `role:admin` | admin only |
+
+From `routes/web.php`:
+
+```php
+Route::resource('productos', ProductoController::class)->middleware('role:admin,cocinero');
+Route::resource('inventario', InventarioController::class)->middleware('role:admin,cocinero');
+Route::resource('mesas', MesaController::class)->middleware('role:admin,mesero');
+Route::resource('pedidos', PedidoController::class)->middleware('role:admin,cajero');
+Route::resource('comandas', ComandaController::class)->middleware('role:admin,cajero');
+Route::resource('delivery', DeliveryController::class)->middleware('role:admin,cajero');
+Route::resource('facturas', FacturaController::class)->middleware('role:admin,cajero');
+Route::resource('pagos', PagoController::class)->middleware('role:admin,cajero');
+Route::resource('cierres', CierreCajaController::class)->middleware('role:admin,cajero');
+Route::resource('usuarios', UsuarioController::class)->middleware('role:admin');
+```
+
+## Role access matrix
+
+The table below shows at a glance which roles can access each section.
+
+| Section | admin | mesero | cocinero | cajero |
+|---|:---:|:---:|:---:|:---:|
+| Dashboard (own role) | ✓ | ✓ | ✓ | ✓ |
+| All dashboards | ✓ | — | — | — |
+| productos | ✓ | — | ✓ | — |
+| inventario | ✓ | — | ✓ | — |
+| mesas | ✓ | ✓ | — | — |
+| pedidos | ✓ | — | — | ✓ |
+| comandas | ✓ | — | — | ✓ |
+| delivery | ✓ | — | — | ✓ |
+| facturas | ✓ | — | — | ✓ |
+| pagos | ✓ | — | — | ✓ |
+| cierres | ✓ | — | — | ✓ |
+| usuarios | ✓ | — | — | — |
+
+## 403 behavior
+
+When a user requests a route they are not authorized for, the middleware calls:
+
+```php
+abort(403, 'No tienes permiso para acceder a esta página.');
+```
+
+Laravel renders the default 403 error page with the message **"No tienes permiso para acceder a esta página."** You can customize this by creating `resources/views/errors/403.blade.php`.
+
+<Warning>
+  All protected routes also sit inside the outer `auth` middleware group. An unauthenticated visitor is redirected to `/login` by both the `auth` middleware and the first check inside `RoleMiddleware`. Never expose resource routes outside the `auth` group.
+</Warning>
+
+## Changing a user's role
+
+### Via the admin UI
+
+<Steps>
+  <Step title="Open user management">
+    Navigate to `/usuarios`. You must be logged in as an `admin`.
+  </Step>
+  <Step title="Click the edit icon">
+    Find the user in the table and click the edit icon. This opens `/usuarios/{usuario}/edit`.
+  </Step>
+  <Step title="Select the new role">
+    Choose the desired role from the **Rol** dropdown: `admin`, `mesero`, `cocinero`, or `cajero`.
+  </Step>
+  <Step title="Save changes">
+    Submit the form. The controller validates the role against `in:admin,mesero,cocinero,cajero` and saves with `$usuario->update($validated)`.
+  </Step>
+</Steps>
+
+### Via Tinker
+
+```php
+php artisan tinker
+```
+
+```php
+$user = App\Models\User::where('email', 'mesero@saborgestion.com')->first();
+$user->role = 'cajero';
+$user->save();
+```
+
+<CardGroup cols={2}>
+  <Card title="User management" icon="users" href="/admin/user-management">
+    Full CRUD reference for the /usuarios interface, including validation rules and Tinker examples
+  </Card>
+  <Card title="Middleware reference" icon="code" href="/developer/middleware">
+    Detailed walkthrough of how RoleMiddleware is registered and applied
+  </Card>
+</CardGroup>

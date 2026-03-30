@@ -1,0 +1,226 @@
+---
+title: 'Middleware'
+description: 'How RoleMiddleware enforces role-based access control across SaborGestion routes.'
+keywords: ['middleware', 'roles', 'authorization', 'access control', 'RoleMiddleware']
+---
+
+SaborGestion ships with one custom middleware class: `RoleMiddleware`. It sits on top of Laravel's built-in `auth` middleware and enforces role-based access control for every protected route.
+
+## `RoleMiddleware`
+
+**File:** `app/Http/Middleware/RoleMiddleware.php`
+
+```php
+<?php
+// app/Http/Middleware/RoleMiddleware.php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+class RoleMiddleware
+{
+    public function handle(Request $request, Closure $next, ...$roles)
+    {
+        if (!Auth::check()) {
+            return redirect('login');
+        }
+
+        $userRole = Auth::user()->role;
+        
+        if (in_array($userRole, $roles)) {
+            return $next($request);
+        }
+
+        abort(403, 'No tienes permiso para acceder a esta página.');
+    }
+}
+```
+
+### How it works
+
+<Steps>
+  <Step title="Authentication check">
+    The middleware first calls `Auth::check()`. If the user is not authenticated, they are immediately redirected to `/login`.
+  </Step>
+  <Step title="Role retrieval">
+    The authenticated user's `role` column is read from `Auth::user()->role`. The four possible values are `admin`, `mesero`, `cocinero`, and `cajero`.
+  </Step>
+  <Step title="Role authorization">
+    The middleware receives one or more allowed roles as variadic parameters (e.g., `'admin'`, `'cocinero'`). It checks whether the user's role is in that list using `in_array()`.
+  </Step>
+  <Step title="Allow or deny">
+    If the role matches, the request passes through to the controller with `$next($request)`. If it does not match, the middleware calls `abort(403)` with a Spanish-language error message.
+  </Step>
+</Steps>
+
+### Allowed roles
+
+The `role` column on the `users` table is an enum with four values:
+
+| Value | Description |
+|---|---|
+| `admin` | Full access to all sections |
+| `mesero` | Tables, waiter dashboard |
+| `cocinero` | Products, inventory, cook dashboard |
+| `cajero` | Orders, comandas, delivery, billing, cashier dashboard |
+
+---
+
+## Registering the middleware
+
+`RoleMiddleware` is registered as an aliased middleware so it can be referenced as `'role'` in route definitions. Registration is in `app/Http/Kernel.php` under `$routeMiddleware`:
+
+```php
+// app/Http/Kernel.php
+protected $routeMiddleware = [
+    // ... default Laravel middleware ...
+    'role' => \App\Http\Middleware\RoleMiddleware::class,
+];
+```
+
+<Note>
+SaborGestion uses the `app/Http/Kernel.php` approach for middleware registration. The `$routeMiddleware` array maps the string alias `'role'` to the `RoleMiddleware` class, which is then referenced in route definitions as `->middleware('role:admin,cocinero')`.
+</Note>
+
+---
+
+## Usage in `routes/web.php`
+
+All application routes sit inside an outer `auth` middleware group. `RoleMiddleware` is applied as a second layer using `->middleware('role:role1,role2')`.
+
+### Applying to resource routes
+
+```php
+// routes/web.php
+
+Route::middleware(['auth'])->group(function () {
+
+    // Gestión de Productos — admin and cocinero only
+    Route::resource('productos', ProductoController::class)
+        ->middleware('role:admin,cocinero');
+
+    // Inventario — admin and cocinero only
+    Route::resource('inventario', InventarioController::class)
+        ->middleware('role:admin,cocinero');
+
+    // Mesas — admin and mesero only
+    Route::resource('mesas', MesaController::class)
+        ->middleware('role:admin,mesero');
+
+    // Pedidos — admin and cajero only
+    Route::resource('pedidos', PedidoController::class)
+        ->middleware('role:admin,cajero');
+
+    // Comandas — admin and cajero only
+    Route::resource('comandas', ComandaController::class)
+        ->middleware('role:admin,cajero');
+
+    // Delivery — admin and cajero only
+    Route::resource('delivery', DeliveryController::class)
+        ->middleware('role:admin,cajero');
+
+    // Facturas — admin and cajero only
+    Route::resource('facturas', FacturaController::class)
+        ->middleware('role:admin,cajero');
+
+    // Pagos — admin and cajero only
+    Route::resource('pagos', PagoController::class)
+        ->middleware('role:admin,cajero');
+
+    // Cierre de Caja — admin and cajero only
+    Route::resource('cierres', CierreCajaController::class)
+        ->middleware('role:admin,cajero');
+
+    // Usuarios — admin only
+    Route::resource('usuarios', UsuarioController::class)
+        ->middleware('role:admin');
+});
+```
+
+### Route-to-role mapping
+
+| Route prefix | Allowed roles |
+|---|---|
+| `/productos` | `admin`, `cocinero` |
+| `/inventario` | `admin`, `cocinero` |
+| `/mesas` | `admin`, `mesero` |
+| `/pedidos` | `admin`, `cajero` |
+| `/comandas` | `admin`, `cajero` |
+| `/delivery` | `admin`, `cajero` |
+| `/facturas` | `admin`, `cajero` |
+| `/pagos` | `admin`, `cajero` |
+| `/cierres` | `admin`, `cajero` |
+| `/usuarios` | `admin` only |
+| `/dashboard/administrador` | `auth` only (role check in controller) |
+| `/dashboard/mesero` | `auth` only |
+| `/dashboard/cocinero` | `auth` only |
+| `/dashboard/cajero` | `auth` only |
+
+<Tip>
+Dashboard routes are protected by `auth` but not by `RoleMiddleware` at the route level. Redirect logic in `DashboardController` (and in `RouteServiceProvider`) handles sending each user to their own dashboard after login.
+</Tip>
+
+---
+
+## Error response
+
+When the role check fails, Laravel renders its default 403 error page. You can customize the message by creating `resources/views/errors/403.blade.php`:
+
+```blade
+@extends('layouts.app')
+
+@section('content')
+<div class="flex flex-col items-center justify-center min-h-screen">
+    <h1 class="text-4xl font-bold text-blue-800">403</h1>
+    <p class="mt-2 text-gray-600">{{ $exception->getMessage() }}</p>
+    <a href="{{ url()->previous() }}" class="mt-4 text-blue-500 hover:underline">
+        Volver
+    </a>
+</div>
+@endsection
+```
+
+<Warning>
+The `auth` middleware must always wrap `RoleMiddleware`. If a route uses `role:admin` without also requiring `auth`, `Auth::user()` will return `null` and the middleware will redirect to `/login` regardless of the role list.
+</Warning>
+
+---
+
+## User model helpers
+
+The `User` model exposes four boolean helper methods that mirror the role values:
+
+```php
+// app/Models/User.php
+
+public function isAdmin(): bool
+{
+    return $this->role === 'admin';
+}
+
+public function isMesero(): bool
+{
+    return $this->role === 'mesero';
+}
+
+public function isCocinero(): bool
+{
+    return $this->role === 'cocinero';
+}
+
+public function isCajero(): bool
+{
+    return $this->role === 'cajero';
+}
+```
+
+Use these in Blade templates to conditionally show sidebar items:
+
+```blade
+@if(Auth::user()->isAdmin() || Auth::user()->isCocinero())
+    <a href="{{ route('productos.index') }}">Gestión de Productos</a>
+@endif
+```

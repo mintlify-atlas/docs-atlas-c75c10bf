@@ -1,0 +1,101 @@
+---
+title: 'Administrator dashboard'
+description: 'Full system overview for admin users, including business intelligence metrics, catalog management, operations, billing, and user administration.'
+keywords: ['dashboard', 'administrador', 'admin', 'business intelligence', 'overview']
+---
+
+The administrator dashboard is the command center for the entire SaborGestion system. Users with the `admin` role have unrestricted access to every module and see a consolidated view of all business activity.
+
+**Route:** `GET /dashboard/administrador`  
+**Controller:** `DashboardController@administrador`  
+**Named route:** `dashboard.administrador`
+
+<Note>
+Access is restricted to users whose `role` is `admin`. Any other authenticated user who navigates to this route receives a `403 Forbidden` response.
+</Note>
+
+## Metrics overview
+
+The dashboard displays four real-time summary cards at the top of the page:
+
+| Card | Description |
+|------|-------------|
+| **Ventas Totales** | Cumulative sales revenue for the current period |
+| **Pedidos Hoy** | Total number of orders placed today |
+| **Clientes Atendidos** | Number of customers served |
+| **Productos Agotados** | Count of menu items that have run out of stock |
+
+Below the cards, two panels provide detail:
+
+- **Ventas Recientes** — a list of the most recent sales transactions
+- **Productos Más Vendidos** — a ranked list of the best-selling products
+
+## Sidebar navigation
+
+The admin role unlocks every section in the sidebar. The sidebar is collapsible (expands to 288 px, collapses to 80 px) and persists its state in `localStorage`.
+
+### Inteligencia de Negocios
+
+Provides access to the dashboard for every role, so the admin can review each operational view:
+
+| Link | Route |
+|------|-------|
+| Dashboard Admin | `dashboard.administrador` |
+| Dashboard Mesero | `dashboard.mesero` |
+| Dashboard Cocinero | `dashboard.cocinero` |
+| Dashboard Cajero | `dashboard.cajero` |
+
+### Catálogo y Menú
+
+| Link | Route | Middleware |
+|------|-------|-----------|
+| Productos | `productos.index` | `role:admin,cocinero` |
+| Inventario | `inventario.index` | `role:admin,cocinero` |
+
+<Tip>
+The Inventario link displays a red pulsing badge when one or more ingredients have a quantity at or below their `stock_minimo` threshold. The count is calculated with `Inventario::whereRaw('cantidad <= stock_minimo')->count()`.
+</Tip>
+
+### Gestión de Mesas
+
+| Link | Route | Middleware |
+|------|-------|-----------|
+| Mesas | `mesas.index` | `role:admin,mesero` |
+
+### Operaciones
+
+Orders, kitchen tickets, delivery, and all billing actions in one section:
+
+| Link | Route | Middleware |
+|------|-------|-----------|
+| Pedidos | `pedidos.index` | `role:admin,cajero` |
+| Comandas | `comandas.index` | `role:admin,cajero` |
+| Delivery | `delivery.index` | `role:admin,cajero` |
+| Pre-factura | `facturas.index` | `role:admin,cajero` |
+| Pagos | `pagos.index` | `role:admin,cajero` |
+| Cierre de Caja | `cierres.index` | `role:admin,cajero` |
+
+### Administración
+
+Exclusive to the `admin` role — not visible to any other role:
+
+| Link | Route |
+|------|-------|
+| Usuarios | `usuarios.index` |
+
+## Quick actions
+
+<CardGroup cols={2}>
+  <Card title="Manage users" icon="users" href="/admin/user-management">
+    Create, edit, and assign roles to system users.
+  </Card>
+  <Card title="Products & inventory" icon="book-open" href="/features/products-inventory">
+    Add menu items and monitor ingredient stock levels.
+  </Card>
+  <Card title="Tables & orders" icon="chair" href="/features/tables-orders">
+    View table status and manage active orders.
+  </Card>
+  <Card title="Billing & payments" icon="file-invoice" href="/features/billing-payments">
+    Generate pre-invoices, record payments, and close the register.
+  </Card>
+</CardGroup>

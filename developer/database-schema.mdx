@@ -1,0 +1,366 @@
+---
+title: 'Database schema'
+description: 'All tables, column definitions, types, and foreign-key relationships for SaborGestion.'
+keywords: ['database', 'schema', 'migrations', 'mysql', 'tables', 'foreign keys']
+---
+
+SaborGestion uses a MySQL database named `saborGestion`. The schema is managed entirely through Laravel migrations. The tables below are documented in migration order, reflecting their foreign-key dependency chain.
+
+<Note>
+Column definitions are extracted directly from the migration files in `database/migrations/`. Do not edit the schema by hand in MySQL — always create a new migration.
+</Note>
+
+## Table overview
+
+| Table | Purpose | Key relationships |
+|---|---|---|
+| `users` | Application users with roles | — |
+| `sessions` | Laravel session storage | `user_id → users.id` (nullable) |
+| `password_reset_tokens` | Password reset tokens | — |
+| `productos` | Menu items for sale | — |
+| `inventarios` | Ingredient stock levels | — |
+| `mesas` | Physical restaurant tables | — |
+| `pedidos` | Customer orders | `mesa_id → mesas.id` |
+| `comandas` | Individual line items within an order | `pedido_id → pedidos.id`, `producto_id → productos.id` |
+| `deliveries` | Delivery details for an order | `pedido_id → pedidos.id` |
+| `facturas` | Invoices generated from orders | `pedido_id → pedidos.id` |
+| `pagos` | Payments applied to an invoice | `factura_id → facturas.id` |
+| `cierre_cajas` | End-of-day cash register summaries | — |
+
+---
+
+## `users`
+
+Created by `0001_01_01_000000_create_users_table.php` and extended by `2026_03_20_235344_add_role_to_users_table.php`.
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint unsigned | No | auto | Primary key |
+| `name` | varchar | No | — | |
+| `email` | varchar | No | — | Unique |
+| `email_verified_at` | timestamp | Yes | NULL | |
+| `password` | varchar | No | — | Bcrypt hashed |
+| `role` | enum | No | `mesero` | `admin`, `mesero`, `cocinero`, `cajero` |
+| `remember_token` | varchar(100) | Yes | NULL | |
+| `created_at` | timestamp | Yes | NULL | |
+| `updated_at` | timestamp | Yes | NULL | |
+
+```php
+// Migration: add_role_to_users_table
+Schema::table('users', function (Blueprint $table) {
+    $table->enum('role', ['admin', 'mesero', 'cocinero', 'cajero'])->default('mesero');
+});
+```
+
+---
+
+## `password_reset_tokens`
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `email` | varchar | No | Primary key |
+| `token` | varchar | No | |
+| `created_at` | timestamp | Yes | |
+
+---
+
+## `sessions`
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | varchar | No | Primary key |
+| `user_id` | bigint unsigned | Yes | Indexed; references `users.id` |
+| `ip_address` | varchar(45) | Yes | Supports IPv6 |
+| `user_agent` | text | Yes | |
+| `payload` | longtext | No | |
+| `last_activity` | integer | No | Indexed |
+
+---
+
+## `productos`
+
+Migration: `2026_03_21_004400_create_productos_table.php`
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint unsigned | No | auto | Primary key |
+| `nombre` | varchar | No | — | Product name |
+| `descripcion` | text | Yes | NULL | |
+| `precio` | decimal(10,2) | No | — | |
+| `categoria` | varchar | No | — | |
+| `activo` | tinyint(1) | No | `1` | Boolean; cast to `bool` in model |
+| `created_at` | timestamp | Yes | NULL | |
+| `updated_at` | timestamp | Yes | NULL | |
+
+```php
+Schema::create('productos', function (Blueprint $table) {
+    $table->id();
+    $table->string('nombre');
+    $table->text('descripcion')->nullable();
+    $table->decimal('precio', 10, 2);
+    $table->string('categoria');
+    $table->boolean('activo')->default(true);
+    $table->timestamps();
+});
+```
+
+---
+
+## `inventarios`
+
+Migration: `2026_03_21_004623_create_inventarios_table.php`
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint unsigned | No | auto | Primary key |
+| `ingrediente` | varchar | No | — | Ingredient name |
+| `cantidad` | decimal(10,2) | No | — | Current stock level |
+| `unidad` | varchar | No | — | Unit of measure (e.g., `kg`, `litros`) |
+| `stock_minimo` | decimal(10,2) | No | `5.00` | Alert threshold |
+| `created_at` | timestamp | Yes | NULL | |
+| `updated_at` | timestamp | Yes | NULL | |
+
+```php
+Schema::create('inventarios', function (Blueprint $table) {
+    $table->id();
+    $table->string('ingrediente');
+    $table->decimal('cantidad', 10, 2);
+    $table->string('unidad');
+    $table->decimal('stock_minimo', 10, 2)->default(5);
+    $table->timestamps();
+});
+```
+
+<Tip>
+The sidebar displays a notification badge when `cantidad` falls below `stock_minimo`. Query `Inventario::where('cantidad', '<', DB::raw('stock_minimo'))->count()` to get the count.
+</Tip>
+
+---
+
+## `mesas`
+
+Migration: `2026_03_21_004811_create_mesas_table.php`
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint unsigned | No | auto | Primary key |
+| `numero` | varchar | No | — | Table identifier (e.g., `"5"`, `"A3"`) |
+| `capacidad` | integer | No | — | Number of seats |
+| `estado` | enum | No | `disponible` | `disponible`, `ocupada`, `reservada` |
+| `created_at` | timestamp | Yes | NULL | |
+| `updated_at` | timestamp | Yes | NULL | |
+
+```php
+Schema::create('mesas', function (Blueprint $table) {
+    $table->id();
+    $table->string('numero');
+    $table->integer('capacidad');
+    $table->enum('estado', ['disponible', 'ocupada', 'reservada'])->default('disponible');
+    $table->timestamps();
+});
+```
+
+---
+
+## `pedidos`
+
+Migration: `2026_03_21_012542_create_pedidos_table.php`
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint unsigned | No | auto | Primary key |
+| `mesa_id` | bigint unsigned | Yes | NULL | FK → `mesas.id` ON DELETE SET NULL |
+| `cliente` | varchar | Yes | NULL | Customer name (used for delivery orders) |
+| `total` | decimal(10,2) | No | `0.00` | |
+| `estado` | enum | No | `pendiente` | `pendiente`, `preparando`, `listo`, `entregado`, `cancelado` |
+| `fecha` | timestamp | No | `CURRENT_TIMESTAMP` | Order creation timestamp |
+| `created_at` | timestamp | Yes | NULL | |
+| `updated_at` | timestamp | Yes | NULL | |
+
+```php
+Schema::create('pedidos', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('mesa_id')->nullable()->constrained()->onDelete('set null');
+    $table->string('cliente')->nullable();
+    $table->decimal('total', 10, 2)->default(0);
+    $table->enum('estado', ['pendiente', 'preparando', 'listo', 'entregado', 'cancelado'])->default('pendiente');
+    $table->timestamp('fecha')->useCurrent();
+    $table->timestamps();
+});
+```
+
+<Note>
+`mesa_id` is nullable so that delivery orders — which have no physical table — can still be recorded as pedidos.
+</Note>
+
+---
+
+## `comandas`
+
+Migration: `2026_03_21_012543_create_comandas_table.php`
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint unsigned | No | auto | Primary key |
+| `pedido_id` | bigint unsigned | No | — | FK → `pedidos.id` ON DELETE CASCADE |
+| `producto_id` | bigint unsigned | No | — | FK → `productos.id` ON DELETE CASCADE |
+| `cantidad` | integer | No | — | |
+| `estado` | enum | No | `pendiente` | `pendiente`, `preparando`, `listo` |
+| `created_at` | timestamp | Yes | NULL | |
+| `updated_at` | timestamp | Yes | NULL | |
+
+```php
+Schema::create('comandas', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('pedido_id')->constrained()->onDelete('cascade');
+    $table->foreignId('producto_id')->constrained()->onDelete('cascade');
+    $table->integer('cantidad');
+    $table->enum('estado', ['pendiente', 'preparando', 'listo'])->default('pendiente');
+    $table->timestamps();
+});
+```
+
+---
+
+## `deliveries`
+
+Migration: `2026_03_21_012544_create_deliveries_table.php`
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint unsigned | No | auto | Primary key |
+| `pedido_id` | bigint unsigned | No | — | FK → `pedidos.id` ON DELETE CASCADE |
+| `direccion` | varchar | No | — | Delivery address |
+| `telefono` | varchar | No | — | Customer phone number |
+| `repartidor` | varchar | Yes | NULL | Assigned delivery person |
+| `estado` | enum | No | `pendiente` | `pendiente`, `en_camino`, `entregado` |
+| `created_at` | timestamp | Yes | NULL | |
+| `updated_at` | timestamp | Yes | NULL | |
+
+```php
+Schema::create('deliveries', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('pedido_id')->constrained()->onDelete('cascade');
+    $table->string('direccion');
+    $table->string('telefono');
+    $table->string('repartidor')->nullable();
+    $table->enum('estado', ['pendiente', 'en_camino', 'entregado'])->default('pendiente');
+    $table->timestamps();
+});
+```
+
+---
+
+## `facturas`
+
+Migration: `2026_03_21_012544_create_facturas_table.php`
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint unsigned | No | auto | Primary key |
+| `pedido_id` | bigint unsigned | No | — | FK → `pedidos.id` ON DELETE CASCADE |
+| `total` | decimal(10,2) | No | — | |
+| `fecha` | timestamp | No | `CURRENT_TIMESTAMP` | |
+| `estado` | enum | No | `prefactura` | `prefactura`, `facturado` |
+| `created_at` | timestamp | Yes | NULL | |
+| `updated_at` | timestamp | Yes | NULL | |
+
+```php
+Schema::create('facturas', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('pedido_id')->constrained()->onDelete('cascade');
+    $table->decimal('total', 10, 2);
+    $table->timestamp('fecha')->useCurrent();
+    $table->enum('estado', ['prefactura', 'facturado'])->default('prefactura');
+    $table->timestamps();
+});
+```
+
+---
+
+## `pagos`
+
+Migration: `2026_03_21_012545_create_pagos_table.php`
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint unsigned | No | auto | Primary key |
+| `factura_id` | bigint unsigned | No | — | FK → `facturas.id` ON DELETE CASCADE |
+| `monto` | decimal(10,2) | No | — | Payment amount |
+| `metodo` | enum | No | — | `efectivo`, `tarjeta`, `transferencia`, `otro` |
+| `fecha` | timestamp | No | `CURRENT_TIMESTAMP` | |
+| `created_at` | timestamp | Yes | NULL | |
+| `updated_at` | timestamp | Yes | NULL | |
+
+```php
+Schema::create('pagos', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('factura_id')->constrained()->onDelete('cascade');
+    $table->decimal('monto', 10, 2);
+    $table->enum('metodo', ['efectivo', 'tarjeta', 'transferencia', 'otro']);
+    $table->timestamp('fecha')->useCurrent();
+    $table->timestamps();
+});
+```
+
+---
+
+## `cierre_cajas`
+
+Migration: `2026_03_21_012546_create_cierre_cajas_table.php`
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint unsigned | No | auto | Primary key |
+| `fecha` | timestamp | No | `CURRENT_TIMESTAMP` | Close timestamp |
+| `total_ventas` | decimal(10,2) | No | `0.00` | Sum of all payments |
+| `total_efectivo` | decimal(10,2) | No | `0.00` | Cash payments subtotal |
+| `total_tarjeta` | decimal(10,2) | No | `0.00` | Card payments subtotal |
+| `total_otros` | decimal(10,2) | No | `0.00` | Transfer / other subtotal |
+| `observaciones` | text | Yes | NULL | Free-text notes |
+| `created_at` | timestamp | Yes | NULL | |
+| `updated_at` | timestamp | Yes | NULL | |
+
+```php
+Schema::create('cierre_cajas', function (Blueprint $table) {
+    $table->id();
+    $table->timestamp('fecha')->useCurrent();
+    $table->decimal('total_ventas', 10, 2)->default(0);
+    $table->decimal('total_efectivo', 10, 2)->default(0);
+    $table->decimal('total_tarjeta', 10, 2)->default(0);
+    $table->decimal('total_otros', 10, 2)->default(0);
+    $table->text('observaciones')->nullable();
+    $table->timestamps();
+});
+```
+
+---
+
+## Foreign key summary
+
+| Child table | Foreign key column | References | On delete |
+|---|---|---|---|
+| `sessions` | `user_id` | `users.id` | (no constraint — nullable index) |
+| `pedidos` | `mesa_id` | `mesas.id` | SET NULL |
+| `comandas` | `pedido_id` | `pedidos.id` | CASCADE |
+| `comandas` | `producto_id` | `productos.id` | CASCADE |
+| `deliveries` | `pedido_id` | `pedidos.id` | CASCADE |
+| `facturas` | `pedido_id` | `pedidos.id` | CASCADE |
+| `pagos` | `factura_id` | `facturas.id` | CASCADE |
+
+<Warning>
+`pedidos.mesa_id` uses `SET NULL` on delete, so deleting a mesa does not delete its associated pedidos — it only nullifies the reference. Ensure your business logic accounts for pedidos with a null `mesa_id`.
+</Warning>
+
+## Running migrations
+
+```bash
+# Run all pending migrations
+php artisan migrate
+
+# Roll back the last batch
+php artisan migrate:rollback
+
+# Fresh install (drops all tables, re-runs all migrations)
+php artisan migrate:fresh
+```

@@ -1,0 +1,205 @@
+---
+title: "User management"
+description: "Create, update, and delete system users from the /usuarios interface. Only the admin role can access this section."
+---
+
+The `usuarios` resource is a full CRUD interface for managing every account that can log in to SaborGestion. Access is restricted to the `admin` role — any other authenticated user who requests a route under `/usuarios` receives a 403 response.
+
+<Note>
+  All routes under `/usuarios` are protected by the `role:admin` middleware applied in `UsuarioController::__construct()`. This is in addition to the outer `auth` middleware that guards all dashboard routes.
+</Note>
+
+## User fields
+
+The `users` table is created by two migrations that run in sequence.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `bigIncrements` | Primary key |
+| `name` | `string` | Required |
+| `email` | `string` | Unique |
+| `email_verified_at` | `timestamp` | Nullable |
+| `password` | `string` | Stored as bcrypt hash |
+| `remember_token` | `string(100)` | Nullable |
+| `role` | `enum` | `admin`, `mesero`, `cocinero`, `cajero` — defaults to `mesero` |
+| `created_at` / `updated_at` | `timestamps` | Automatic |
+
+The `role` column is added by `2026_03_20_235344_add_role_to_users_table.php`:
+
+```php
+Schema::table('users', function (Blueprint $table) {
+    $table->enum('role', ['admin', 'mesero', 'cocinero', 'cajero'])->default('mesero');
+});
+```
+
+## Route map
+
+All routes are registered as a Laravel resource under the `auth` middleware group:
+
+```php
+Route::resource('usuarios', UsuarioController::class)->middleware('role:admin');
+```
+
+| Verb | URI | Controller method | Description |
+|---|---|---|---|
+| `GET` | `/usuarios` | `index` | List all users |
+| `GET` | `/usuarios/create` | `create` | Show creation form |
+| `POST` | `/usuarios` | `store` | Persist a new user |
+| `GET` | `/usuarios/{usuario}/edit` | `edit` | Show edit form |
+| `PUT` | `/usuarios/{usuario}` | `update` | Persist changes |
+| `DELETE` | `/usuarios/{usuario}` | `destroy` | Delete a user |
+
+<Note>
+  The `show` route (`GET /usuarios/{usuario}`) is registered by the resource macro but does not have a dedicated view in this project. The index and edit views cover read use cases.
+</Note>
+
+## Validation rules
+
+### Creating a user — `store`
+
+```php
+$validated = $request->validate([
+    'name'     => 'required|string|max:255',
+    'email'    => 'required|email|unique:users',
+    'password' => 'required|string|min:8',
+    'role'     => 'required|in:admin,mesero,cocinero,cajero',
+]);
+```
+
+### Updating a user — `update`
+
+```php
+$validated = $request->validate([
+    'name'  => 'required|string|max:255',
+    'email' => 'required|email|unique:users,email,' . $usuario->id,
+    'role'  => 'required|in:admin,mesero,cocinero,cajero',
+]);
+```
+
+<Note>
+  The `password` field is **not** present in the update validation rules. If you submit a non-empty password value, the controller checks `$request->filled('password')` and hashes it with `Hash::make`. Leaving the field blank leaves the existing password unchanged.
+</Note>
+
+## Password hashing
+
+Passwords are never stored in plain text. The `store` method hashes immediately after validation:
+
+```php
+$validated['password'] = Hash::make($validated['password']);
+```
+
+The `User` model also declares `password` in its `casts` array as `'hashed'`, which provides an additional safety layer:
+
+```php
+protected function casts(): array
+{
+    return [
+        'email_verified_at' => 'datetime',
+        'password'          => 'hashed',
+    ];
+}
+```
+
+## Creating users via Tinker
+
+You can seed initial accounts from the command line without using the web form. This is useful during first-time setup when no admin account exists yet.
+
+```bash
+php artisan tinker
+```
+
+Then paste the following block, replacing values as needed:
+
+```php
+use App\Models\User;
+
+// Admin
+User::create([
+    'name'     => 'Administrador',
+    'email'    => 'admin@saborgestion.com',
+    'password' => '12345678',
+    'role'     => 'admin'
+]);
+
+// Mesero
+User::create([
+    'name'     => 'Mesero',
+    'email'    => 'mesero@saborgestion.com',
+    'password' => '12345678',
+    'role'     => 'mesero'
+]);
+
+// Cocinero
+User::create([
+    'name'     => 'Cocinero',
+    'email'    => 'cocinero@saborgestion.com',
+    'password' => '12345678',
+    'role'     => 'cocinero'
+]);
+
+// Cajero
+User::create([
+    'name'     => 'Cajero',
+    'email'    => 'cajero@saborgestion.com',
+    'password' => '12345678',
+    'role'     => 'cajero'
+]);
+```
+
+<Note>
+  The `User` model declares `'password' => 'hashed'` in its `casts` array, so `User::create()` automatically bcrypt-hashes the password — you do not need to call `Hash::make` manually in Tinker. The `UsuarioController::store` method calls `Hash::make` explicitly only because it works with the raw validated array before passing it to `User::create`.
+</Note>
+
+## CRUD walkthrough
+
+<Steps>
+  <Step title="Open the users list">
+    Navigate to `/usuarios`. You see a table showing every user's **name**, **email**, and **role** (color-coded badge: red for admin, blue for mesero, green for cocinero, yellow for cajero).
+  </Step>
+  <Step title="Click Nuevo Usuario">
+    The button in the top-right corner links to `/usuarios/create`. Fill in the name, email, password (minimum 8 characters), and select a role from the dropdown.
+  </Step>
+  <Step title="Submit the form">
+    A `POST` request is sent to `/usuarios`. The controller validates, hashes the password, and calls `User::create`. On success, you are redirected back to `/usuarios` with the flash message **"Usuario creado exitosamente"**.
+  </Step>
+  <Step title="Edit a user">
+    Click the edit icon next to any row. The form at `/usuarios/{usuario}/edit` pre-fills name, email, and role. Leave the password field blank to keep the current password.
+  </Step>
+  <Step title="Delete a user">
+    Click the trash icon in the actions column. The inline form submits a `DELETE` request. A JavaScript confirm dialog (`¿Estás seguro?`) prevents accidental deletion.
+  </Step>
+</Steps>
+
+## User model
+
+```php
+protected $fillable = [
+    'name',
+    'email',
+    'password',
+    'role',
+];
+
+protected $hidden = [
+    'password',
+    'remember_token',
+];
+```
+
+The model also exposes four boolean helper methods:
+
+```php
+public function isAdmin(): bool    { return $this->role === 'admin'; }
+public function isMesero(): bool   { return $this->role === 'mesero'; }
+public function isCocinero(): bool { return $this->role === 'cocinero'; }
+public function isCajero(): bool   { return $this->role === 'cajero'; }
+```
+
+<CardGroup cols={2}>
+  <Card title="Roles & permissions" icon="shield" href="/admin/permissions">
+    See which routes each role can access and how RoleMiddleware enforces access
+  </Card>
+  <Card title="Middleware reference" icon="lock" href="/developer/middleware">
+    Detailed explanation of RoleMiddleware and how it integrates with the router
+  </Card>
+</CardGroup>

@@ -1,0 +1,73 @@
+---
+title: "Introduction"
+description: "SaborGestion is a Laravel 12 restaurant management SaaS that gives every member of your team — admin, waiter, cook, and cashier — their own focused workspace."
+keywords: ["saborGestion", "restaurant management", "laravel", "introduction", "overview"]
+---
+
+SaborGestion covers the full lifecycle of a restaurant shift: from opening the dining room and taking the first order, through kitchen ticket management and delivery coordination, to generating invoices, registering payments, and closing the cash register. Each of the four user roles sees only the tools relevant to their job.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Role-based access" icon="users">
+    Four roles — `admin`, `mesero`, `cocinero`, `cajero` — each with their own dashboard and route-level permissions enforced by `RoleMiddleware`.
+  </Card>
+  <Card title="Product catalog & inventory" icon="book-open">
+    Manage menu items and track ingredient stock levels. The sidebar shows a live notification badge when inventory counts change.
+  </Card>
+  <Card title="Tables & orders" icon="utensils">
+    Waiters assign tables, place orders, and dispatch kitchen tickets (comandas). Order status moves through `pendiente → preparando → listo → entregado`.
+  </Card>
+  <Card title="Delivery management" icon="truck">
+    A dedicated delivery module lets cashiers and admins track off-premises orders alongside dine-in service.
+  </Card>
+  <Card title="Billing & payments" icon="receipt">
+    Generate pre-invoices, convert them to final invoices, register cash and card payments, and run end-of-day cash-register closings.
+  </Card>
+  <Card title="Admin user management" icon="user-shield">
+    Administrators can create, view, edit, and delete user accounts with full CRUD through the `UsuarioController`.
+  </Card>
+</CardGroup>
+
+## System architecture
+
+SaborGestion is a server-rendered monolith — no separate API client. All business logic lives in Laravel controllers, views are compiled Blade templates, and styles are utility classes from Tailwind CSS.
+
+| Layer | Technology |
+|---|---|
+| Framework | Laravel 12 (`laravel/framework ^12.0`) |
+| Auth scaffolding | Laravel Breeze (`laravel/breeze ^2.4`) |
+| Views | Blade templates |
+| Styles | Tailwind CSS |
+| Icons | Font Awesome |
+| Database | MySQL (database name: `saborGestion`) |
+| Build tool | Vite (via `npm run build`) |
+| Testing | PHPUnit 11 |
+
+### Request flow
+
+1. A browser request hits a route defined in `routes/web.php`.
+2. Laravel's `auth` middleware verifies the session; unauthenticated requests redirect to `/login`.
+3. The `RoleMiddleware` checks `Auth::user()->role` against the roles declared on the route. Unauthorized access returns a 403.
+4. The matching controller method queries the database and returns a Blade view.
+
+### Route groups at a glance
+
+All application routes (except the home page and auth routes) sit inside an `auth` middleware group. Individual resource routes apply an additional `role` middleware with the allowed roles:
+
+```php
+// routes/web.php
+Route::middleware(['auth'])->group(function () {
+    Route::resource('productos', ProductoController::class)->middleware('role:admin,cocinero');
+    Route::resource('mesas', MesaController::class)->middleware('role:admin,mesero');
+    Route::resource('pedidos', PedidoController::class)->middleware('role:admin,cajero');
+    Route::resource('usuarios', UsuarioController::class)->middleware('role:admin');
+    // ...
+});
+```
+
+## Next step
+
+<Card title="Installation" icon="arrow-right" href="/installation">
+  Set up SaborGestion on your local machine.
+</Card>

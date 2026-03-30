@@ -1,28 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "SaborGestion",
+  "projectType": "saas",
+  "projectName": "SaborGestion",
+  "projectDescription": "A Laravel-based restaurant management system with role-based access for administrators, waiters, cooks, and cashiers to manage orders, inventory, billing, and daily operations.",
   "theme": "almond",
-  "colors": {
-    "primary": "#040404",
-    "light": "#ef370f",
-    "dark": "#f79d72"
-  },
-  "favicon": "https://media.brand.dev/ef7cdb24-cf48-44b6-9439-4288899142b4.png",
-  "logo": {
-    "light": "https://media.brand.dev/69d705f4-5e9b-4d51-bd5f-4788b2d5c4d2.svg",
-    "dark": "https://media.brand.dev/69d705f4-5e9b-4d51-bd5f-4788b2d5c4d2.svg"
-  },
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/Henry4ndrew/saborGestion"
-    }
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/Henry4ndrew/saborGestion"
-    }
-  },
+  "primaryColor": "#040404",
+  "lightColor": "#ef370f",
+  "darkColor": "#f79d72",
   "navigation": {
     "tabs": [
       {
@@ -85,5 +68,33 @@
         ]
       }
     ]
-  }
+  },
+  "keyFeatures": [
+    "Role-based access control with 4 roles: Administrator, Waiter, Cook, Cashier",
+    "Product catalog and menu management with CRUD operations",
+    "Ingredient inventory tracking with notifications",
+    "Table management and order-taking workflow",
+    "Kitchen comanda (order ticket) management",
+    "Delivery order handling",
+    "Invoice generation and payment registration",
+    "End-of-day cash register closing",
+    "User management (admin only)",
+    "Role-specific dashboards with business intelligence views"
+  ],
+  "publicApiSurface": [
+    "GET /dashboard/administrador",
+    "GET /dashboard/mesero",
+    "GET /dashboard/cocinero",
+    "GET /dashboard/cajero",
+    "RESOURCE /productos (admin, cocinero)",
+    "RESOURCE /inventario (admin, cocinero)",
+    "RESOURCE /mesas (admin, mesero)",
+    "RESOURCE /pedidos (admin, cajero)",
+    "RESOURCE /comandas (admin, cajero)",
+    "RESOURCE /delivery (admin, cajero)",
+    "RESOURCE /facturas (admin, cajero)",
+    "RESOURCE /pagos (admin, cajero)",
+    "RESOURCE /cierres (admin, cajero)",
+    "RESOURCE /usuarios (admin only)"
+  ]
 }

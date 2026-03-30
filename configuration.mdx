@@ -1,0 +1,119 @@
+---
+title: "Configuration"
+description: "Environment variables, database connection, application key, and role-based access for SaborGestion."
+keywords: ["configuration", "environment", "database", "roles", "env", "saborGestion"]
+---
+
+SaborGestion is configured through the `.env` file in the project root. Copy `.env.example` to `.env` and adjust the values below for your environment.
+
+## Database
+
+The application uses MySQL in production-like setups. The `.env.example` ships with SQLite defaults; switch to MySQL by uncommenting and updating these values:
+
+```ini
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=saborGestion
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+Create the database before running migrations:
+
+```sql
+CREATE DATABASE saborGestion CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+Then run:
+
+```bash
+php artisan migrate
+```
+
+## Application key
+
+Laravel uses `APP_KEY` to encrypt session data and signed URLs. Generate it once after cloning:
+
+```bash
+php artisan key:generate
+```
+
+This writes a `base64:`-prefixed key to your `.env`. Never share or commit this value.
+
+```ini
+APP_KEY=base64:...
+```
+
+<Warning>
+  If `APP_KEY` is empty or invalid, all encrypted sessions and cookies will be broken. Every deployment needs its own unique key.
+</Warning>
+
+## Other environment values
+
+| Variable | Default | Notes |
+|---|---|---|
+| `APP_NAME` | `Laravel` | Change to `SaborGestion` for display purposes |
+| `APP_ENV` | `local` | Set to `production` on live servers |
+| `APP_DEBUG` | `true` | Set to `false` in production |
+| `APP_URL` | `http://localhost` | Update to your public domain |
+| `SESSION_DRIVER` | `database` | Sessions stored in the `sessions` table |
+| `QUEUE_CONNECTION` | `database` | Jobs stored in the `jobs` table |
+| `BCRYPT_ROUNDS` | `12` | Cost factor for password hashing |
+
+## User roles
+
+The `role` column on the `users` table is an enum with four values, added by the migration `2026_03_20_235344_add_role_to_users_table.php`:
+
+```php
+$table->enum('role', ['admin', 'mesero', 'cocinero', 'cajero'])->default('mesero');
+```
+
+Route-level enforcement is handled by `RoleMiddleware`, which checks `Auth::user()->role` against the roles declared on each route:
+
+```php
+// app/Http/Middleware/RoleMiddleware.php
+$userRole = Auth::user()->role;
+
+if (in_array($userRole, $roles)) {
+    return $next($request);
+}
+
+abort(403, 'No tienes permiso para acceder a esta página.');
+```
+
+### Role access reference
+
+| Role | Dashboards | Products & Inventory | Tables | Orders, Comandas, Delivery | Billing & Payments | Users |
+|---|---|---|---|---|---|---|
+| `admin` | All four | Yes | Yes | Yes | Yes | Yes |
+| `mesero` | Mesero only | No | Yes | No | No | No |
+| `cocinero` | Cocinero only | Yes | No | No | No | No |
+| `cajero` | Cajero only | No | No | Yes | Yes | No |
+
+## Default development credentials
+
+These accounts are created with the Tinker seed commands described in the [installation guide](/installation):
+
+| Role | Email | Password |
+|---|---|---|
+| `admin` | `admin@saborgestion.com` | `12345678` |
+| `mesero` | `mesero@saborgestion.com` | `12345678` |
+| `cocinero` | `cocinero@saborgestion.com` | `12345678` |
+| `cajero` | `cajero@saborgestion.com` | `12345678` |
+
+<Warning>
+  Change all default passwords before deploying to a production or publicly accessible environment. The default password `12345678` is intentionally weak and must not be used outside local development.
+</Warning>
+
+<Tip>
+  You can update a user's password at any time with Tinker:
+
+  ```php
+  use App\Models\User;
+  use Illuminate\Support\Facades\Hash;
+
+  User::where('email', 'admin@saborgestion.com')
+      ->update(['password' => Hash::make('your-new-password')]);
+  ```
+</Tip>

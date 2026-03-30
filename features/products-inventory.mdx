@@ -1,0 +1,151 @@
+---
+title: "Products & Inventory"
+description: "Manage the menu product catalog and track ingredient stock levels. Both features are available to admins and cooks."
+---
+
+SaborGestion separates **products** (menu items sold to customers) from **inventory** (raw ingredients tracked by stock level). Both resources are accessible to users with the `admin` or `cocinero` role.
+
+```php
+Route::resource('productos', ProductoController::class)->middleware('role:admin,cocinero');
+Route::resource('inventario', InventarioController::class)->middleware('role:admin,cocinero');
+```
+
+<CardGroup cols={2}>
+  <Card title="Productos" icon="utensils" href="#products">
+    Full CRUD for menu items with name, description, price, category, and active status.
+  </Card>
+  <Card title="Inventario" icon="warehouse" href="#inventory">
+    Ingredient tracking with quantity, unit of measure, and a minimum stock threshold that triggers a sidebar badge.
+  </Card>
+</CardGroup>
+
+## Products
+
+### Database schema
+
+The `productos` table is defined in `database/migrations/2026_03_21_004400_create_productos_table.php`:
+
+```php
+Schema::create('productos', function (Blueprint $table) {
+    $table->id();
+    $table->string('nombre');
+    $table->text('descripcion')->nullable();
+    $table->decimal('precio', 10, 2);
+    $table->string('categoria');
+    $table->boolean('activo')->default(true);
+    $table->timestamps();
+});
+```
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `bigint` (PK) | Auto-increment |
+| `nombre` | `varchar` | Product name, required |
+| `descripcion` | `text` | Optional description |
+| `precio` | `decimal(10,2)` | Selling price |
+| `categoria` | `varchar` | Category label (e.g., "Entradas", "Bebidas") |
+| `activo` | `boolean` | Whether the product appears on the menu; defaults to `true` |
+| `created_at` / `updated_at` | `timestamp` | Laravel timestamps |
+
+### Routes
+
+The resource controller registers all standard RESTful routes under `/productos`:
+
+| Method | URI | Action |
+|--------|-----|--------|
+| `GET` | `/productos` | `index` — list all products |
+| `GET` | `/productos/create` | `create` — show creation form |
+| `POST` | `/productos` | `store` — save a new product |
+| `GET` | `/productos/{producto}` | `show` — view a product |
+| `GET` | `/productos/{producto}/edit` | `edit` — show edit form |
+| `PUT/PATCH` | `/productos/{producto}` | `update` — apply changes |
+| `DELETE` | `/productos/{producto}` | `destroy` — delete a product |
+
+### Adding a product
+
+<Steps>
+  <Step title="Open the products list">
+    Navigate to `/productos`. You will see a table of all existing products.
+  </Step>
+  <Step title="Click Create">
+    Go to `/productos/create` to open the creation form.
+  </Step>
+  <Step title="Fill in the fields">
+    Enter the product **nombre**, optional **descripción**, **precio**, and **categoría**. The **activo** toggle defaults to enabled.
+  </Step>
+  <Step title="Submit">
+    POST to `/productos`. The product is stored in the `productos` table and you are redirected to the product list.
+  </Step>
+</Steps>
+
+<Tip>
+  Set `activo` to `false` to hide a product from selection in new orders without deleting its historical record.
+</Tip>
+
+---
+
+## Inventory
+
+### Database schema
+
+The `inventarios` table is defined in `database/migrations/2026_03_21_004623_create_inventarios_table.php`:
+
+```php
+Schema::create('inventarios', function (Blueprint $table) {
+    $table->id();
+    $table->string('ingrediente');
+    $table->decimal('cantidad', 10, 2);
+    $table->string('unidad');
+    $table->decimal('stock_minimo', 10, 2)->default(5);
+    $table->timestamps();
+});
+```
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `bigint` (PK) | Auto-increment |
+| `ingrediente` | `varchar` | Ingredient name |
+| `cantidad` | `decimal(10,2)` | Current quantity on hand |
+| `unidad` | `varchar` | Unit of measure (e.g., "kg", "litros", "unidades") |
+| `stock_minimo` | `decimal(10,2)` | Low-stock threshold; defaults to `5` |
+| `created_at` / `updated_at` | `timestamp` | Laravel timestamps |
+
+### Routes
+
+| Method | URI | Action |
+|--------|-----|--------|
+| `GET` | `/inventario` | `index` — list all ingredients |
+| `GET` | `/inventario/create` | `create` — show creation form |
+| `POST` | `/inventario` | `store` — save a new ingredient |
+| `GET` | `/inventario/{inventario}` | `show` — view an ingredient |
+| `GET` | `/inventario/{inventario}/edit` | `edit` — show edit form |
+| `PUT/PATCH` | `/inventario/{inventario}` | `update` — apply changes |
+| `DELETE` | `/inventario/{inventario}` | `destroy` — delete an ingredient |
+
+### Low-stock badge
+
+The sidebar displays a notification badge when one or more ingredients have a `cantidad` at or below their `stock_minimo`. This gives cooks and admins an at-a-glance warning without navigating into the inventory list.
+
+<Warning>
+  The badge is a visual indicator only. SaborGestion does not send email or push notifications when stock is low.
+</Warning>
+
+### Updating inventory stock
+
+<Steps>
+  <Step title="Navigate to the inventory list">
+    Go to `/inventario` to see all ingredients with their current quantity and minimum threshold.
+  </Step>
+  <Step title="Identify low-stock items">
+    Items where `cantidad` ≤ `stock_minimo` are highlighted and also shown in the sidebar badge count.
+  </Step>
+  <Step title="Open the edit form">
+    Click **Edit** next to the ingredient or navigate to `/inventario/{id}/edit`.
+  </Step>
+  <Step title="Update the quantity">
+    Enter the new `cantidad` value after restocking. You can also adjust the `unidad` or `stock_minimo` as needed.
+  </Step>
+  <Step title="Save">
+    Submit the form. The `inventarios` record is updated and the sidebar badge recalculates on the next page load.
+  </Step>
+</Steps>

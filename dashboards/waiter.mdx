@@ -1,0 +1,76 @@
+---
+title: 'Waiter dashboard'
+description: 'Role-scoped dashboard for mesero users showing daily sales metrics and quick access to table management.'
+keywords: ['dashboard', 'mesero', 'waiter', 'mesas', 'tables']
+---
+
+The waiter dashboard gives `mesero` users a focused view of floor activity. It surfaces the same top-level business metrics as the admin view but limits sidebar navigation to table management — the primary responsibility of this role.
+
+**Route:** `GET /dashboard/mesero`  
+**Controller:** `DashboardController@mesero`  
+**Named route:** `dashboard.mesero`
+
+<Note>
+Access requires the authenticated user's `role` to be `mesero` or `admin`. Any other role receives a `403 Forbidden` response.
+</Note>
+
+## Metrics overview
+
+The dashboard displays four summary cards at the top of the page:
+
+| Card | Description |
+|------|-------------|
+| **Ventas Totales** | Cumulative sales revenue for the current period |
+| **Pedidos Hoy** | Total number of orders placed today |
+| **Clientes Atendidos** | Number of customers served |
+| **Productos Agotados** | Count of menu items currently out of stock |
+
+Below the cards, two panels provide additional context:
+
+- **Ventas Recientes** — a list of the most recent sales transactions
+- **Productos Más Vendidos** — a ranked list of the best-selling products
+
+## Sidebar navigation
+
+The mesero role sees a reduced sidebar with only the sections relevant to floor service.
+
+### Inteligencia de Negocios
+
+| Link | Route |
+|------|-------|
+| Dashboard Mesero | `dashboard.mesero` |
+
+### Gestión de Mesas
+
+| Link | Route | Middleware |
+|------|-------|-----------|
+| Mesas | `mesas.index` | `role:admin,mesero` |
+
+<Tip>
+The **Gestión de Mesas** section is where a waiter manages table availability, seating, and status updates throughout a service shift.
+</Tip>
+
+## Typical workflow
+
+<Steps>
+  <Step title="Log in and open the dashboard">
+    Navigate to `/dashboard/mesero` after authentication. The four metric cards give you an immediate snapshot of today's activity.
+  </Step>
+  <Step title="Review table status">
+    Click **Mesas** in the sidebar to open the table management view. You can see which tables are occupied, available, or reserved.
+  </Step>
+  <Step title="Seat customers and update tables">
+    Update a table's status as customers are seated. This keeps the kitchen and cashier informed of floor activity in real time.
+  </Step>
+</Steps>
+
+## Quick actions
+
+<CardGroup cols={2}>
+  <Card title="Manage tables" icon="chair" href="/features/tables-orders">
+    Open the full table management view to check and update table status.
+  </Card>
+  <Card title="Administrator dashboard" icon="chart-pie" href="/dashboards/administrator">
+    Reference the admin view to understand the full system context.
+  </Card>
+</CardGroup>

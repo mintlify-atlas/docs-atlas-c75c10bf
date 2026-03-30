@@ -1,0 +1,198 @@
+---
+title: 'Artisan commands'
+description: 'Reference for Artisan commands and Composer scripts used to set up, run, and test SaborGestion.'
+---
+
+SaborGestion is a standard Laravel 12 application. The sections below cover the Artisan commands and Composer convenience scripts you will use most often.
+
+## Composer scripts
+
+`composer.json` defines four scripts that wrap the most common multi-step workflows. Run them from the project root.
+
+### `composer run setup`
+
+Performs a full first-time project setup: installs PHP and Node dependencies, generates the application key, runs migrations, and builds frontend assets.
+
+```bash
+composer run setup
+```
+
+This script executes the following steps in order:
+
+```bash
+composer install
+php artisan key:generate
+php artisan migrate --force
+npm install
+npm run build
+```
+
+### `composer run dev`
+
+Starts the full development environment with all four processes running concurrently in a single terminal.
+
+```bash
+composer run dev
+```
+
+Under the hood this runs:
+
+```bash
+npx concurrently \
+  -c "#93c5fd,#c4b5fd,#fb7185,#fdba74" \
+  "php artisan serve" \
+  "php artisan queue:listen --tries=1 --timeout=0" \
+  "php artisan pail --timeout=0" \
+  "npm run dev" \
+  --names=server,queue,logs,vite \
+  --kill-others
+```
+
+| Process | Command | What it does |
+|---------|---------|--------------|
+| `server` | `php artisan serve` | Laravel development server at `http://127.0.0.1:8000` |
+| `queue` | `php artisan queue:listen --tries=1 --timeout=0` | Processes queued jobs as they arrive |
+| `logs` | `php artisan pail --timeout=0` | Streams application log output to the terminal |
+| `vite` | `npm run dev` | Vite HMR asset compiler |
+
+<Note>
+  `--kill-others` means that if any one process exits, the remaining processes are stopped automatically.
+</Note>
+
+### `composer run test`
+
+Clears the config cache and runs the full PHPUnit test suite.
+
+```bash
+composer run test
+```
+
+Equivalent to:
+
+```bash
+php artisan config:clear --ansi
+php artisan test
+```
+
+---
+
+## Setup commands
+
+Use these commands when bootstrapping the project manually or after pulling changes that include new migrations.
+
+<CodeGroup>
+
+```bash Generate application key
+php artisan key:generate
+```
+
+```bash Run all pending migrations
+php artisan migrate
+```
+
+```bash Fresh migration with seeders
+php artisan migrate:fresh --seed
+```
+
+</CodeGroup>
+
+---
+
+## Development commands
+
+<CodeGroup>
+
+```bash Start the development server
+php artisan serve
+```
+
+```bash Open Tinker REPL
+php artisan tinker
+```
+
+</CodeGroup>
+
+---
+
+## Queue and logs
+
+<CodeGroup>
+
+```bash Listen for queued jobs
+php artisan queue:listen --tries=1 --timeout=0
+```
+
+```bash Stream application logs
+php artisan pail --timeout=0
+```
+
+</CodeGroup>
+
+---
+
+## Testing
+
+<CodeGroup>
+
+```bash Run test suite
+php artisan test
+```
+
+```bash Clear config cache before tests
+php artisan config:clear
+```
+
+</CodeGroup>
+
+---
+
+## Creating users with Tinker
+
+Because SaborGestion uses role-based access control, you need to assign a `role` value when creating users. Use Tinker to seed initial accounts without writing a seeder.
+
+```bash
+php artisan tinker
+```
+
+```php
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+
+// Administrator
+User::create([
+    'name'     => 'Administrador',
+    'email'    => 'admin@saborgestion.com',
+    'password' => Hash::make('password'),
+    'role'     => 'admin',
+]);
+
+// Waiter
+User::create([
+    'name'     => 'Mesero',
+    'email'    => 'mesero@saborgestion.com',
+    'password' => Hash::make('password'),
+    'role'     => 'mesero',
+]);
+
+// Cook
+User::create([
+    'name'     => 'Cocinero',
+    'email'    => 'cocinero@saborgestion.com',
+    'password' => Hash::make('password'),
+    'role'     => 'cocinero',
+]);
+
+// Cashier
+User::create([
+    'name'     => 'Cajero',
+    'email'    => 'cajero@saborgestion.com',
+    'password' => Hash::make('password'),
+    'role'     => 'cajero',
+]);
+```
+
+Valid values for the `role` field are: `admin`, `mesero`, `cocinero`, `cajero`. Any other value will fail the role middleware check on protected routes.
+
+<Tip>
+  After creating users in Tinker you can verify them with `User::all(['name','email','role'])`.
+</Tip>

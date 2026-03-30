@@ -1,0 +1,131 @@
+---
+title: "Authentication & Roles"
+description: "How users log in to SaborGestion and how the four roles control access to every section of the application."
+---
+
+SaborGestion uses Laravel Breeze for authentication and a custom `RoleMiddleware` to enforce per-route access control. Every user has exactly one role stored on the `users` table, and that role determines which dashboards and resource routes they can reach.
+
+## Login flow
+
+<Steps>
+  <Step title="Navigate to the landing page">
+    Open `/inicio` in your browser. The landing page renders `resources/views/home.blade.php`.
+  </Step>
+  <Step title="Click Iniciar Sesión">
+    The login button redirects to `/login`, the standard Laravel Breeze authentication page.
+  </Step>
+  <Step title="Submit your credentials">
+    Enter your email and password. Breeze validates the credentials against the `users` table (password is stored as a bcrypt hash).
+  </Step>
+  <Step title="Redirect to your role dashboard">
+    After a successful login, the system reads `Auth::user()->role` and sends you to your role-specific dashboard:
+
+    | Role | Dashboard route |
+    |------|-----------------|
+    | `admin` | `/dashboard/administrador` |
+    | `mesero` | `/dashboard/mesero` |
+    | `cocinero` | `/dashboard/cocinero` |
+    | `cajero` | `/dashboard/cajero` |
+  </Step>
+</Steps>
+
+## The four roles
+
+<Tabs>
+  <Tab title="admin">
+    The `admin` role has unrestricted access to every section of the application. Admins can manage all resources and are the only role that can create, edit, or delete other users via `/usuarios`.
+
+    **Accessible sections:** dashboard, productos, inventario, mesas, pedidos, comandas, delivery, facturas, pagos, cierres, usuarios
+  </Tab>
+  <Tab title="mesero">
+    The `mesero` (waiter) role focuses on the dining room. Meseros can manage tables and view their own dashboard.
+
+    **Accessible sections:** dashboard, mesas
+  </Tab>
+  <Tab title="cocinero">
+    The `cocinero` (cook) role focuses on food preparation. Cocineros can manage the product catalog and monitor ingredient stock.
+
+    **Accessible sections:** dashboard, productos, inventario
+  </Tab>
+  <Tab title="cajero">
+    The `cajero` (cashier) role covers the full billing workflow. Cajeros handle orders, kitchen tickets, delivery, invoices, payments, and daily cash register closings.
+
+    **Accessible sections:** dashboard, pedidos, comandas, delivery, facturas, pagos, cierres
+  </Tab>
+</Tabs>
+
+## Role vs. access matrix
+
+| Section | admin | mesero | cocinero | cajero |
+|---------|:-----:|:------:|:--------:|:------:|
+| Dashboard | ✓ | ✓ | ✓ | ✓ |
+| Productos (`/productos`) | ✓ | | ✓ | |
+| Inventario (`/inventario`) | ✓ | | ✓ | |
+| Mesas (`/mesas`) | ✓ | ✓ | | |
+| Pedidos (`/pedidos`) | ✓ | | | ✓ |
+| Comandas (`/comandas`) | ✓ | | | ✓ |
+| Delivery (`/delivery`) | ✓ | | | ✓ |
+| Facturas (`/facturas`) | ✓ | | | ✓ |
+| Pagos (`/pagos`) | ✓ | | | ✓ |
+| Cierres (`/cierres`) | ✓ | | | ✓ |
+| Usuarios (`/usuarios`) | ✓ | | | |
+
+## RoleMiddleware
+
+All authenticated routes run under the `auth` middleware. Resource routes that require a specific role are additionally wrapped with `role:<roles>`:
+
+```php
+// routes/web.php
+Route::resource('productos', ProductoController::class)->middleware('role:admin,cocinero');
+Route::resource('mesas', MesaController::class)->middleware('role:admin,mesero');
+Route::resource('pedidos', PedidoController::class)->middleware('role:admin,cajero');
+```
+
+The middleware class at `app/Http/Middleware/RoleMiddleware.php` handles each request as follows:
+
+```php
+public function handle(Request $request, Closure $next, ...$roles)
+{
+    if (!Auth::check()) {
+        return redirect('login');
+    }
+
+    $userRole = Auth::user()->role;
+
+    if (in_array($userRole, $roles)) {
+        return $next($request);
+    }
+
+    abort(403, 'No tienes permiso para acceder a esta página.');
+}
+```
+
+The middleware accepts one or more role names as variadic arguments (the `...$roles` spread). If the authenticated user's role appears in that list, the request proceeds. Otherwise a `403` response is returned.
+
+<Warning>
+  Attempting to access a route your role does not permit returns a `403 Forbidden` response with the message **"No tienes permiso para acceder a esta página."** There is no silent redirect — the error is shown immediately.
+</Warning>
+
+## Users table schema
+
+The `role` column was added to the standard Breeze `users` table via a dedicated migration:
+
+```php
+// database/migrations/2026_03_20_235344_add_role_to_users_table.php
+Schema::table('users', function (Blueprint $table) {
+    $table->enum('role', ['admin', 'mesero', 'cocinero', 'cajero'])->default('mesero');
+});
+```
+
+The `User` model exposes helper methods for role checks:
+
+```php
+$user->isAdmin();    // role === 'admin'
+$user->isMesero();   // role === 'mesero'
+$user->isCocinero(); // role === 'cocinero'
+$user->isCajero();   // role === 'cajero'
+```
+
+<Note>
+  The default role for new users is `mesero`. When creating users via `/usuarios`, an admin must explicitly select the desired role from the `admin`, `mesero`, `cocinero`, or `cajero` options.
+</Note>

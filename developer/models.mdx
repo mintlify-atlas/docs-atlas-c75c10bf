@@ -1,0 +1,437 @@
+---
+title: 'Eloquent models'
+description: 'Reference for all Eloquent models in SaborGestion, including fillable fields, casts, relationships, and helper methods.'
+---
+
+SaborGestion uses nine Eloquent models located in `app/Models/`. Each model extends `Illuminate\Database\Eloquent\Model` (except `User`, which extends `Authenticatable`) and uses the `HasFactory` trait.
+
+## User
+
+**Class:** `App\Models\User`  
+**Table:** `users` (Laravel default)  
+**Extends:** `Illuminate\Foundation\Auth\User` (Authenticatable)
+
+The `User` model stores restaurant staff accounts. The `role` field determines which dashboards and resource routes each user can access.
+
+```php app/Models/User.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+
+class User extends Authenticatable
+{
+    use HasFactory, Notifiable;
+
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+        'role',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password'          => 'hashed',
+        ];
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isMesero(): bool
+    {
+        return $this->role === 'mesero';
+    }
+
+    public function isCocinero(): bool
+    {
+        return $this->role === 'cocinero';
+    }
+
+    public function isCajero(): bool
+    {
+        return $this->role === 'cajero';
+    }
+}
+```
+
+| Property | Details |
+|----------|---------|
+| `$fillable` | `name`, `email`, `password`, `role` |
+| `$hidden` | `password`, `remember_token` |
+| `casts` | `email_verified_at` → `datetime`; `password` → `hashed` |
+| Role helpers | `isAdmin()`, `isMesero()`, `isCocinero()`, `isCajero()` |
+
+Valid values for `role`: `admin`, `mesero`, `cocinero`, `cajero`.
+
+---
+
+## Producto
+
+**Class:** `App\Models\Producto`  
+**Table:** `productos` (Laravel convention)
+
+Represents a menu item. The `activo` flag controls whether the product is available for ordering.
+
+```php app/Models/Producto.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Producto extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'nombre',
+        'descripcion',
+        'precio',
+        'categoria',
+        'activo',
+    ];
+
+    protected $casts = [
+        'precio' => 'decimal:2',
+        'activo' => 'boolean',
+    ];
+}
+```
+
+| Property | Details |
+|----------|---------|
+| `$fillable` | `nombre`, `descripcion`, `precio`, `categoria`, `activo` |
+| `$casts` | `precio` → `decimal:2`; `activo` → `boolean` |
+
+---
+
+## Inventario
+
+**Class:** `App\Models\Inventario`  
+**Table:** `inventarios` (explicit `$table`)
+
+Tracks raw ingredients and their current stock level. A `stock_minimo` threshold can be used to trigger low-stock alerts.
+
+```php app/Models/Inventario.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Inventario extends Model
+{
+    use HasFactory;
+
+    protected $table = 'inventarios';
+
+    protected $fillable = [
+        'ingrediente',
+        'cantidad',
+        'unidad',
+        'stock_minimo',
+    ];
+
+    protected $casts = [
+        'cantidad'     => 'decimal:2',
+        'stock_minimo' => 'decimal:2',
+    ];
+}
+```
+
+| Property | Details |
+|----------|---------|
+| `$table` | `inventarios` |
+| `$fillable` | `ingrediente`, `cantidad`, `unidad`, `stock_minimo` |
+| `$casts` | `cantidad` → `decimal:2`; `stock_minimo` → `decimal:2` |
+
+---
+
+## Mesa
+
+**Class:** `App\Models\Mesa`  
+**Table:** `mesas` (Laravel convention)
+
+Represents a physical table in the restaurant. The `estado` field tracks whether the table is available, occupied, or reserved.
+
+```php app/Models/Mesa.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Mesa extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'numero',
+        'capacidad',
+        'estado',
+    ];
+}
+```
+
+| Property | Details |
+|----------|---------|
+| `$fillable` | `numero`, `capacidad`, `estado` |
+
+---
+
+## Pedido
+
+**Class:** `App\Models\Pedido`  
+**Table:** `pedidos` (Laravel convention)
+
+An order placed at a table. `mesa_id` is a foreign key to the `mesas` table. `estado` tracks the lifecycle of the order (e.g. pendiente, en preparación, entregado, cancelado).
+
+```php app/Models/Pedido.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Pedido extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'mesa_id',
+        'cliente',
+        'total',
+        'estado',
+        'fecha',
+    ];
+
+    protected $casts = [
+        'total' => 'decimal:2',
+        'fecha' => 'datetime',
+    ];
+}
+```
+
+| Property | Details |
+|----------|---------|
+| `$fillable` | `mesa_id`, `cliente`, `total`, `estado`, `fecha` |
+| `$casts` | `total` → `decimal:2`; `fecha` → `datetime` |
+
+---
+
+## Comanda
+
+**Class:** `App\Models\Comanda`  
+**Table:** `comandas` (Laravel convention)
+
+A line item within a `Pedido`. Associates a product and quantity with an order, and carries its own `estado` to track kitchen preparation status independently per item.
+
+```php app/Models/Comanda.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Comanda extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'pedido_id',
+        'producto_id',
+        'cantidad',
+        'estado',
+    ];
+}
+```
+
+| Property | Details |
+|----------|---------|
+| `$fillable` | `pedido_id`, `producto_id`, `cantidad`, `estado` |
+
+---
+
+## Delivery
+
+**Class:** `App\Models\Delivery`  
+**Table:** `deliveries` (Laravel convention)
+
+Delivery metadata linked to a `Pedido`. Stores the customer's address, contact phone number, assigned delivery person, and current `estado`.
+
+```php app/Models/Delivery.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Delivery extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'pedido_id',
+        'direccion',
+        'telefono',
+        'repartidor',
+        'estado',
+    ];
+}
+```
+
+| Property | Details |
+|----------|---------|
+| `$fillable` | `pedido_id`, `direccion`, `telefono`, `repartidor`, `estado` |
+
+---
+
+## Factura
+
+**Class:** `App\Models\Factura`  
+**Table:** `facturas` (Laravel convention)
+
+An invoice generated from a `Pedido`. Records the total amount, issue date, and payment status.
+
+```php app/Models/Factura.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Factura extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'pedido_id',
+        'total',
+        'fecha',
+        'estado',
+    ];
+
+    protected $casts = [
+        'total' => 'decimal:2',
+        'fecha' => 'datetime',
+    ];
+}
+```
+
+| Property | Details |
+|----------|---------|
+| `$fillable` | `pedido_id`, `total`, `fecha`, `estado` |
+| `$casts` | `total` → `decimal:2`; `fecha` → `datetime` |
+
+---
+
+## Pago
+
+**Class:** `App\Models\Pago`  
+**Table:** `pagos` (Laravel convention)
+
+A payment transaction against a `Factura`. The `metodo` field records the payment method (e.g. efectivo, tarjeta).
+
+```php app/Models/Pago.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Pago extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'factura_id',
+        'monto',
+        'metodo',
+        'fecha',
+    ];
+
+    protected $casts = [
+        'monto' => 'decimal:2',
+        'fecha' => 'datetime',
+    ];
+}
+```
+
+| Property | Details |
+|----------|---------|
+| `$fillable` | `factura_id`, `monto`, `metodo`, `fecha` |
+| `$casts` | `monto` → `decimal:2`; `fecha` → `datetime` |
+
+---
+
+## CierreCaja
+
+**Class:** `App\Models\CierreCaja`  
+**Table:** `cierre_cajas` (explicit `$table`)
+
+A daily cash-drawer close record. Summarises total sales split by payment method, with a free-text `observaciones` field for notes.
+
+```php app/Models/CierreCaja.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class CierreCaja extends Model
+{
+    use HasFactory;
+
+    protected $table = 'cierre_cajas';
+
+    protected $fillable = [
+        'fecha',
+        'total_ventas',
+        'total_efectivo',
+        'total_tarjeta',
+        'total_otros',
+        'observaciones',
+    ];
+
+    protected $casts = [
+        'fecha'          => 'datetime',
+        'total_ventas'   => 'decimal:2',
+        'total_efectivo' => 'decimal:2',
+        'total_tarjeta'  => 'decimal:2',
+        'total_otros'    => 'decimal:2',
+    ];
+}
+```
+
+| Property | Details |
+|----------|---------|
+| `$table` | `cierre_cajas` |
+| `$fillable` | `fecha`, `total_ventas`, `total_efectivo`, `total_tarjeta`, `total_otros`, `observaciones` |
+| `$casts` | `fecha` → `datetime`; all monetary totals → `decimal:2` |
+
+<Tip>
+  Two models declare an explicit `$table` because their class names do not follow Laravel's default pluralisation rules: `Inventario` maps to `inventarios` and `CierreCaja` maps to `cierre_cajas`.
+</Tip>

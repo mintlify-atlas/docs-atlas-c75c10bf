@@ -1,0 +1,207 @@
+---
+title: "Billing & Payments"
+description: "Generate invoices from orders, register payments by method, and close the daily cash register. Available to admins and cashiers."
+---
+
+The billing module covers the financial end of every shift. It progresses through three stages: invoice generation (`facturas`), payment registration (`pagos`), and daily cash register closing (`cierres`).
+
+```php
+Route::resource('facturas', FacturaController::class)->middleware('role:admin,cajero');
+Route::resource('pagos', PagoController::class)->middleware('role:admin,cajero');
+Route::resource('cierres', CierreCajaController::class)->middleware('role:admin,cajero');
+```
+
+<CardGroup cols={2}>
+  <Card title="Facturas" icon="receipt" href="#invoices-facturas">
+    Generate a pre-invoice or final invoice from a completed order.
+  </Card>
+  <Card title="Pagos" icon="credit-card" href="#payments-pagos">
+    Register cash, card, transfer, or other payment methods against an invoice.
+  </Card>
+  <Card title="Cierre de Caja" icon="lock" href="#cash-register-closing">
+    Summarize daily totals by payment method and record any observations.
+  </Card>
+  <Card title="End-of-day workflow" icon="calendar-check" href="#end-of-day-workflow">
+    Step-by-step guide to close out a full shift.
+  </Card>
+</CardGroup>
+
+---
+
+## Invoices (facturas)
+
+### Database schema
+
+Defined in `database/migrations/2026_03_21_012544_create_facturas_table.php`:
+
+```php
+Schema::create('facturas', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('pedido_id')->constrained()->onDelete('cascade');
+    $table->decimal('total', 10, 2);
+    $table->timestamp('fecha')->useCurrent();
+    $table->enum('estado', ['prefactura', 'facturado'])->default('prefactura');
+    $table->timestamps();
+});
+```
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `bigint` (PK) | Auto-increment |
+| `pedido_id` | `bigint` (FK) | References `pedidos.id`; cascades on delete |
+| `total` | `decimal(10,2)` | Invoice total amount |
+| `fecha` | `timestamp` | Invoice date; defaults to `CURRENT_TIMESTAMP` |
+| `estado` | `enum` | `prefactura` (draft) or `facturado` (finalised); defaults to `prefactura` |
+| `created_at` / `updated_at` | `timestamp` | Laravel timestamps |
+
+### Invoice statuses
+
+| Status | Description |
+|--------|-------------|
+| `prefactura` | Draft invoice, pending customer confirmation or payment |
+| `facturado` | Invoice has been finalised and issued |
+
+### Routes
+
+| Method | URI | Action |
+|--------|-----|--------|
+| `GET` | `/facturas` | `index` — list all invoices |
+| `GET` | `/facturas/create` | `create` — show creation form |
+| `POST` | `/facturas` | `store` — generate a new invoice |
+| `GET` | `/facturas/{factura}` | `show` — view invoice detail |
+| `GET` | `/facturas/{factura}/edit` | `edit` — show edit form |
+| `PUT/PATCH` | `/facturas/{factura}` | `update` — apply changes |
+| `DELETE` | `/facturas/{factura}` | `destroy` — delete an invoice |
+
+<Warning>
+  Deleting the associated `pedido` will also delete any invoices linked to it via `CASCADE`. Finalise the invoice before archiving old orders.
+</Warning>
+
+---
+
+## Payments (pagos)
+
+### Database schema
+
+Defined in `database/migrations/2026_03_21_012545_create_pagos_table.php`:
+
+```php
+Schema::create('pagos', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('factura_id')->constrained()->onDelete('cascade');
+    $table->decimal('monto', 10, 2);
+    $table->enum('metodo', ['efectivo', 'tarjeta', 'transferencia', 'otro']);
+    $table->timestamp('fecha')->useCurrent();
+    $table->timestamps();
+});
+```
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `bigint` (PK) | Auto-increment |
+| `factura_id` | `bigint` (FK) | References `facturas.id`; cascades on delete |
+| `monto` | `decimal(10,2)` | Amount paid in this transaction |
+| `metodo` | `enum` | Payment method (see below) |
+| `fecha` | `timestamp` | Payment date; defaults to `CURRENT_TIMESTAMP` |
+| `created_at` / `updated_at` | `timestamp` | Laravel timestamps |
+
+### Payment methods
+
+| Method | Description |
+|--------|-------------|
+| `efectivo` | Cash payment |
+| `tarjeta` | Credit or debit card |
+| `transferencia` | Bank transfer |
+| `otro` | Any other method |
+
+### Routes
+
+| Method | URI | Action |
+|--------|-----|--------|
+| `GET` | `/pagos` | `index` — list all payments |
+| `GET` | `/pagos/create` | `create` — show creation form |
+| `POST` | `/pagos` | `store` — register a payment |
+| `GET` | `/pagos/{pago}` | `show` — view payment detail |
+| `GET` | `/pagos/{pago}/edit` | `edit` — show edit form |
+| `PUT/PATCH` | `/pagos/{pago}` | `update` — apply changes |
+| `DELETE` | `/pagos/{pago}` | `destroy` — delete a payment |
+
+<Note>
+  A single invoice can have multiple `pago` records, for example when a customer splits payment between cash and card. Sum all `monto` values for a given `factura_id` to determine the total amount collected.
+</Note>
+
+---
+
+## Cash register closing (cierre de caja)
+
+The `cierre_cajas` table stores a daily summary of sales broken down by payment method. The cashier creates one record at the end of each shift.
+
+### Database schema
+
+Defined in `database/migrations/2026_03_21_012546_create_cierre_cajas_table.php`:
+
+```php
+Schema::create('cierre_cajas', function (Blueprint $table) {
+    $table->id();
+    $table->timestamp('fecha')->useCurrent();
+    $table->decimal('total_ventas', 10, 2)->default(0);
+    $table->decimal('total_efectivo', 10, 2)->default(0);
+    $table->decimal('total_tarjeta', 10, 2)->default(0);
+    $table->decimal('total_otros', 10, 2)->default(0);
+    $table->text('observaciones')->nullable();
+    $table->timestamps();
+});
+```
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `bigint` (PK) | Auto-increment |
+| `fecha` | `timestamp` | Closing date and time; defaults to `CURRENT_TIMESTAMP` |
+| `total_ventas` | `decimal(10,2)` | Grand total of all sales for the period; defaults to `0` |
+| `total_efectivo` | `decimal(10,2)` | Total collected in cash; defaults to `0` |
+| `total_tarjeta` | `decimal(10,2)` | Total collected by card; defaults to `0` |
+| `total_otros` | `decimal(10,2)` | Total collected by transfer or other methods; defaults to `0` |
+| `observaciones` | `text` (nullable) | Free-text notes (discrepancies, incidents, etc.) |
+| `created_at` / `updated_at` | `timestamp` | Laravel timestamps |
+
+### Routes
+
+| Method | URI | Action |
+|--------|-----|--------|
+| `GET` | `/cierres` | `index` — list all closing records |
+| `GET` | `/cierres/create` | `create` — show creation form |
+| `POST` | `/cierres` | `store` — record a new closing |
+| `GET` | `/cierres/{cierre}` | `show` — view closing detail |
+| `GET` | `/cierres/{cierre}/edit` | `edit` — show edit form |
+| `PUT/PATCH` | `/cierres/{cierre}` | `update` — apply corrections |
+| `DELETE` | `/cierres/{cierre}` | `destroy` — delete a closing record |
+
+---
+
+## End-of-day workflow
+
+<Steps>
+  <Step title="Confirm all orders are closed">
+    Review `/pedidos` and ensure all active orders have `estado = entregado` or `cancelado`. No order should remain in `pendiente` or `preparando` before closing.
+  </Step>
+  <Step title="Generate invoices for completed orders">
+    For each delivered order that does not yet have an invoice, go to `/facturas/create`, select the `pedido_id`, enter the `total`, and set `estado` to `prefactura`. Review the amounts with the customer and then update `estado` to `facturado`.
+  </Step>
+  <Step title="Register payments">
+    For each finalised invoice, go to `/pagos/create`. Select the `factura_id`, enter the `monto`, and choose the `metodo` (efectivo, tarjeta, transferencia, or otro). Repeat if the payment is split across multiple methods.
+  </Step>
+  <Step title="Tally totals by method">
+    Sum all `pagos.monto` records for the shift, grouped by `metodo`, to get your efectivo, tarjeta, and otros subtotals.
+  </Step>
+  <Step title="Create the cierre de caja">
+    Navigate to `/cierres/create`. Fill in `total_ventas` with the grand total, and `total_efectivo`, `total_tarjeta`, and `total_otros` with the per-method sums. Add any `observaciones` for discrepancies and submit.
+  </Step>
+</Steps>
+
+<Tip>
+  A quick way to derive the `total_ventas` figure is to sum all `facturas.total` values where `estado = 'facturado'` and `fecha` falls within the shift period.
+</Tip>
+
+<Warning>
+  There is no automatic reconciliation between the `pagos` records and the `cierre_caja` totals — the cashier enters the closing figures manually. Always cross-check against the payments list before submitting the closing record.
+</Warning>
